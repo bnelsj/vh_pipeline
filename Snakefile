@@ -11,6 +11,8 @@ VH_INDIR = 'discordant_reads'
 VH_OUTDIR = 'vh_analysis'
 VH_GROUP_SIZE = 30
 NODUPS_DIR = 'nodups'
+SORTED_SUFFIX = 'sorted.bam'
+MARKED_DUPS_SUFFIX = 'sorted.nodups.bam'
 
 #CONTIGS = [str(x) for x in range(1,23)] + ['X','Y']
 CONTIGS = ['chr' + str(x) for x in range(1,23)] + ['chrX','chrY']
@@ -78,15 +80,15 @@ rule make_manifest:
         'cat {MANIFEST_DIR}/*.txt > {OUTFILE}'
 
 rule get_isize_from_stream:
-    input: '%s/{sample}/{sample}.sorted.nodups.bam' % NODUPS_DIR, '%s/{sample}/{sample}.sorted.nodups.bam.bai' % NODUPS_DIR
+    input: '%s/{sample}/{sample}.%s' % (NODUPS_DIR, MARKED_DUPS_SUFFIX), '%s/{sample}/{sample}.%s.bai' % (NODUPS_DIR, MARKED_DUPS_SUFFIX)
     output: '{MANIFEST_DIR}/{sample}.txt', '{MANIFEST_DIR}/{sample}.nm', '{MANIFEST_DIR}/{sample}.isize'
     params: sge_opts="-l mfree=12G -N calc_insert_size",  n_samples='1000', n_deviations='4'
     shell:
          'python ~bnelsj/src/stream_read_pair/stream_sort_pairs.py --input_bam {input[0]} --n_samples {params.n_samples} --subsample_reads --binary --include_chrs {INCLUDE_CHRS} | python ~bnelsj/stream_read_pair/make_manifest_from_stream.py --input_bam {input[0]} --outdir {MANIFEST_DIR} --read_len {READ_LEN} --deviations {params.n_deviations}'
 
 rule mark_dups:
-    input: '%s/{sample}/{sample}.sorted.bam' % SAMPLE_DIR
-    output: '%s/{sample}/{sample}.sorted.nodups.bam' % NODUPS_DIR, '%s/{sample}/{sample}.sorted.nodups.bam.bai' % NODUPS_DIR
+    input: '%s/{sample}/{sample}.%s' % (SAMPLE_DIR, SORTED_SUFFIX)
+    output: '%s/{sample}/{sample}.%s' % (NODUPS_DIR, MARKED_DUPS_SUFFIX), '%s/{sample}/{sample}.%s.bai' % (NODUPS_DIR, MARKED_DUPS_SUFFIX)
     params: sge_opts = '-l mfree=8G -l disk_free=180G -N mrkdps', sn = '{sample}'
     shell:
         "java -Xmx8G -jar $PICARD_DIR/MarkDuplicates.jar INPUT={input[0]} OUTPUT={output[0]} METRICS_FILE={NODUPS_DIR}/{params.sn}/{params.sn}.metrics REMOVE_DUPLICATES=false ASSUME_SORTED=true COMPRESSION_LEVEL=5 VALIDATION_STRINGENCY=SILENT MAX_RECORDS_IN_RAM=5000000 QUIET=true VERBOSITY=ERROR CREATE_INDEX=true; mv {NODUPS_DIR}/{params.sn}/{params.sn}.sorted.nodups.bai {output[1]}"
