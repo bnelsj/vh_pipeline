@@ -31,7 +31,7 @@ for dir in dirs_to_check:
 
 with open(SAMPLE_LIST, 'r') as fn:
     for line in fn.readlines():
-        SAMPLES.append(os.path.basename(line).split('.')[0])
+        SAMPLES.append(os.path.basename(line).split('.')[0].rstrip())
 
 SIZE = len(SAMPLES)
 NGROUPS = 0
