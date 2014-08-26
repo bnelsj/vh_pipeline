@@ -59,7 +59,7 @@ rule run_vh:
         'module load VariationHunter/0.4; VH -i /net/eichler/vol5/home/bknelson/src/Hg19_NecessaryFiles/initInfo -c /net/eichler/vol5/home/bknelson/src/Hg19_NecessaryFiles/AllChro -g /net/eichler/vol5/home/bknelson/src/Hg19_NecessaryFiles/hg19_Gap.Table.USCS.Clean -r /net/eichler/vol5/home/bknelson/src/Hg19_NecessaryFiles/Hg19.Satellite -l {params.gn}.txt -t {params.gn}.ReadName -o {params.gn}.cluster'
 
 rule get_discordant_reads:
-    input: '%s/{sample}/{sample}.sorted.nodups.bam' % NODUPS_DIR, 'manifest.txt'
+    input: '%s/{sample}/{sample}.%s' % (NODUPS_DIR, MARKED_DUPS_SUFFIX), 'manifest.txt'
     output: '%s/{sample}.vh' % VH_INDIR
     params: sge_opts="-l mfree=8G -N get_disco_rds -cwd", sn='{sample}'
     shell:
@@ -89,6 +89,6 @@ rule get_isize_from_stream:
 rule mark_dups:
     input: '%s/{sample}/{sample}.%s' % (SAMPLE_DIR, SORTED_SUFFIX)
     output: '%s/{sample}/{sample}.%s' % (NODUPS_DIR, MARKED_DUPS_SUFFIX), '%s/{sample}/{sample}.%s.bai' % (NODUPS_DIR, MARKED_DUPS_SUFFIX)
-    params: sge_opts = '-l mfree=8G -l disk_free=180G -N mrkdps', sn = '{sample}'
+    params: sge_opts = '-l mfree=8G -l disk_free=180G -N mrkdps', sn = '{sample}', index_suffix = '%s'.replace('.bam','bai') % MARKED_DUPS_SUFFIX
     shell:
-        "java -Xmx8G -jar $PICARD_DIR/MarkDuplicates.jar INPUT={input[0]} OUTPUT={output[0]} METRICS_FILE={NODUPS_DIR}/{params.sn}/{params.sn}.metrics REMOVE_DUPLICATES=false ASSUME_SORTED=true COMPRESSION_LEVEL=5 VALIDATION_STRINGENCY=SILENT MAX_RECORDS_IN_RAM=5000000 QUIET=true VERBOSITY=ERROR CREATE_INDEX=true; mv {NODUPS_DIR}/{params.sn}/{params.sn}.sorted.nodups.bai {output[1]}"
+        "java -Xmx8G -jar $PICARD_DIR/MarkDuplicates.jar INPUT={input[0]} OUTPUT={output[0]} METRICS_FILE={NODUPS_DIR}/{params.sn}/{params.sn}.metrics REMOVE_DUPLICATES=false ASSUME_SORTED=true COMPRESSION_LEVEL=5 VALIDATION_STRINGENCY=SILENT MAX_RECORDS_IN_RAM=5000000 QUIET=true VERBOSITY=ERROR CREATE_INDEX=true; mv {NODUPS_DIR}/{params.sn}/{params.sn}.{params.index_suffix} {output[1]}"
