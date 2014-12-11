@@ -33,6 +33,7 @@ FAMILY_BATCHES = True
 ### Manifest file column names (only used if FAMILY_BATCHES = True)
 FAMILY_COL_NAME = 'family'
 SAMPLE_COL_NAME = 'sample'
+POSITION_COL_NAME = 'position'
 ###
 
 if not FAMILY_BATCHES:
@@ -69,7 +70,7 @@ for dir in dirs_to_check:
 ### Begin rule definitions
 
 rule all:
-    input: '%s/ALL.SV' % VH_OUTDIR, expand('%s/ALL.ed{ed}.ls{ls}.{type}' % CALL_DIR, ed = ["1", "2"], ls = ["3","4"], type = ["dels_per_sample", "del", "s1.denovo", "p1.denovo"])
+    input: '%s/ALL.SV' % VH_OUTDIR, expand('%s/ALL.ed{ed}.ls{ls}.{type}' % CALL_DIR, ed = ["1", "2"], ls = ["3","4"], type = ["dels_per_sample", "del", "p1.denovo"])
     params: sge_opts=""
 
 rule get_dels_per_sample:
@@ -84,7 +85,7 @@ rule get_p1_denovo:
     output: '%s/ALL.ed{ed}.ls{ls}.p1.denovo' % CALL_DIR
     params: sge_opts='-l mfree=8G -N denovo'    
     shell:
-        'python ~bnelsj/pipelines/VariationHunter/get_denovo.py {input} {output} --manifest {MANIFEST} --family_member p1'
+        'python ~bnelsj/pipelines/VariationHunter/get_denovo.py {input} {output} --manifest {MANIFEST} --family_member p1 --family_col_name {FAMILY_COL_NAME} --sample_col_name {SAMPLE_COL_NAME} --position_col_name {POSITION_COL_NAME}'
 
 rule get_s1_denovo:
     input: '%s/ALL.ed{ed}.ls{ls}.del' % CALL_DIR
