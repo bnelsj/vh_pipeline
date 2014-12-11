@@ -1,8 +1,9 @@
 #!/usr/bin/python
 
 import argparse
+import csv
 
-def split_manifest_family(manifest, n_groups, outdir, vhdir, contig, family):
+def split_manifest_family(manifest, n_groups, outdir, vhdir, contig, family, family_col_name, sample_col_name):
     samples = {}
     with open(manifest, 'r') as infile:
         for line in infile:
@@ -13,13 +14,13 @@ def split_manifest_family(manifest, n_groups, outdir, vhdir, contig, family):
 
     families = {}
 
-    with open(family, 'r') as family_info:
+    with open(family) as csvfile:
+        family_info = csv.DictReader(csvfile, delimiter='\t')
         for line in family_info:
-            sample_dat = line.rstrip().split('\t')
-            family = sample_dat[1].split('.')[0]
+            family = line[family_col_name]
             if family not in families:
                 families[family] = []
-            families[family].append(sample_dat[0])
+            families[family].append(line[sample_col_name])
 
     batches = [[] for x in range(n_groups)]
 
@@ -83,14 +84,16 @@ if __name__ == '__main__':
     parser.add_argument('--outdir', default='./')
     parser.add_argument('--contig', default='', help='Chromosome number for analysis (Default: %(default)s)')
     parser.add_argument('--vhdir', required=True, help='Path to discordant read files')
-    parser.add_argument('--family', default='', help='Path to manifest file with family info')
+    parser.add_argument('--family', default=None, help='Path to manifest file with family info')
+    parser.add_argument('--family_col_name', default='family', help='Name of family column in manifest file')
+    parser.add_argument('--sample_col_name', default='sample', help='Name of sample column in manifest file')
 
     args = parser.parse_args()
 
     args.group_size = int(args.group_size)
     args.n_groups = int(args.n_groups)
  
-    if args.family != '':
-        split_manifest_family(args.manifest, args.n_groups, args.outdir, args.vhdir, args.contig, args.family)
+    if args.family is not None:
+        split_manifest_family(args.manifest, args.n_groups, args.outdir, args.vhdir, args.contig, args.family, args.family_col_name, args.sample_col_name)
     else:
         split_manifest(args.manifest, args.group_size, args.n_groups, args.outdir, args.vhdir, args.contig)

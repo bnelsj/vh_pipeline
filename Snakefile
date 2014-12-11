@@ -6,7 +6,7 @@ import os
 ### Variables that need to be set
 SAMPLE_DIR = '/net/eichler/vol23/projects/simons_genome_project/nobackups/bams/ssc'
 
-MANIFEST = "/net/eichler/vol23/projects/simons_genome_project/nobackups/simons_genome_project_sample_file.txt"
+MANIFEST = "/net/eichler/vol5/home/bnelsj/pipelines/VariationHunter/simons_genome_project_sample_file.txt"
 
 PICARD_ISIZE_PATH = '/net/eichler/vol23/projects/simons_genome_project/nobackups/analysis/ssc/insert_size_metrics'
 PICARD_ISIZE_METRICS = [os.path.basename(file) for file in os.listdir(PICARD_ISIZE_PATH) if file.endswith('_insert_size_metrics.txt')]
@@ -29,6 +29,11 @@ for file in os.listdir(SAMPLE_DIR):
 VH_GROUP_SIZE = 20
 NGROUPS = 8
 FAMILY_BATCHES = True
+
+### Manifest file column names (only used if FAMILY_BATCHES = True)
+FAMILY_COL_NAME = 'family'
+SAMPLE_COL_NAME = 'sample'
+###
 
 if not FAMILY_BATCHES:
     SIZE = len(SAMPLES)
@@ -122,7 +127,7 @@ rule prep_vh:
     params: sge_opts='-N make_batches'
     run:
         if FAMILY_BATCHES:
-            shell('python ~bnelsj/pipelines/VariationHunter/prep_divet_manifest.py --group_size {VH_GROUP_SIZE} --n_groups {NGROUPS} --manifest {input[0]} --outdir {VH_OUTDIR} --vhdir {DISCORDANT_READ_DIR}/sorted --family {MANIFEST}')
+            shell('python ~bnelsj/pipelines/VariationHunter/prep_divet_manifest.py --group_size {VH_GROUP_SIZE} --n_groups {NGROUPS} --manifest {input[0]} --outdir {VH_OUTDIR} --vhdir {DISCORDANT_READ_DIR}/sorted --family {MANIFEST} --family_col_name {FAMILY_COL_NAME} --sample_col_name {SAMPLE_COL_NAME}')
         else:
             shell('python ~bnelsj/pipelines/VariationHunter/prep_divet_manifest.py --group_size {VH_GROUP_SIZE} --n_groups {NGROUPS} --manifest {input[0]} --outdir {VH_OUTDIR} --vhdir {DISCORDANT_READ_DIR}/sorted')
 
