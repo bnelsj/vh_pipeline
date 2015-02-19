@@ -4,31 +4,35 @@ import os
 ### Assumes you have run Picard's mark duplicates and insert size calculations
 
 ### Variables that need to be set
-SAMPLE_DIR = '/net/eichler/vol23/projects/simons_genome_project/nobackups/bams/ssc'
+SAMPLE_DIR = '/net/eichler/vol18/jlhudd/human_diversity/remapped_bams'
 
-MANIFEST = "/net/eichler/vol5/home/bnelsj/pipelines/VariationHunter/simons_genome_project_sample_file.txt"
-
-PICARD_ISIZE_PATH = '/net/eichler/vol23/projects/simons_genome_project/nobackups/analysis/ssc/insert_size_metrics'
-PICARD_ISIZE_METRICS = [os.path.basename(file) for file in os.listdir(PICARD_ISIZE_PATH) if file.endswith('_insert_size_metrics.txt')]
+MANIFEST = "/net/eichler/vol23/projects/human_diversity/nobackups/bnelsj/manifest.txt"
 
 NODUPS_DIR = SAMPLE_DIR
 
-READ_LEN = '151'
+READ_LEN = '100'
 
 ### Build list of samples and determine how they will be split into batches
 ### By default, this uses NGROUPS and not VH_GROUP_SIZE
 ### assigns samples to groups based on family as listed in MANIFEST
 
 SAMPLES = []
-for file in os.listdir(SAMPLE_DIR):
-    if file.endswith(".bam"):
-        sample = file.split(".")[0]
-        if sample not in SAMPLES:
+with open(MANIFEST, "r") as reader:
+    for line in reader:
+        sample = line.rstrip().split()[0]
+        if sample not in SAMPLES and sample.startswith("WEA"):
             SAMPLES.append(sample)
+
+EXCLUDED_SAMPLES = ["WEA_Georgian_mg27_M", "WEA_Bishkek_28439_F"]
+
+SAMPLES = list(set(SAMPLES) - set(EXCLUDED_SAMPLES))
+
+PICARD_ISIZE_PATH = '.'
+PICARD_ISIZE_METRICS = [os.path.basename(file) for file in os.listdir(PICARD_ISIZE_PATH) if file.endswith('_insert_size_metrics.txt') if any(lambda x: file.startswith(x), SAMPLES)]
 
 VH_GROUP_SIZE = 20
 NGROUPS = 8
-FAMILY_BATCHES = True
+FAMILY_BATCHES = False
 
 ### Manifest file column names (only used if FAMILY_BATCHES = True)
 FAMILY_COL_NAME = 'family'
@@ -54,12 +58,12 @@ DISCORDANT_READ_DIR = 'discordant_reads'
 ALL_DISCO_DIR = 'all_discordant_reads'
 VH_OUTDIR = 'vh_analysis'
 CALL_DIR = 'calls'
-MARKED_DUPS_SUFFIX = 'bam'
+MARKED_DUPS_SUFFIX = 'sorted.nodups.bam'
 
 CONTIGS = [str(x) for x in range(1,23)] + ['X','Y'] + ['chr' + str(x) for x in range(1,23)] + ['chrX','chrY']
 INCLUDE_CHRS = ':'.join(CONTIGS)
 
-### Create directories
+### Create directories, load modules
 
 dirs_to_check = ['log', MANIFEST_DIR, NODUPS_DIR, VH_OUTDIR, ALL_DISCO_DIR] + [DISCORDANT_READ_DIR + x for x in ["/unsorted", "/sorted"]]
 
@@ -118,30 +122,44 @@ rule run_selection:
 rule run_vh:
     input: '%s/{num}.txt' % VH_OUTDIR
     output: '%s/{num}.ReadName' % VH_OUTDIR, '%s/{num}.cluster' % VH_OUTDIR
-    params: sge_opts="-l mfree=30G -N run_vh", gn = '%s/{num}' % VH_OUTDIR
+    params: sge_opts="-l mfree=50G -N run_vh", gn = '%s/{num}' % VH_OUTDIR
     shell:
         'module load VariationHunter/0.4; VH -i /net/eichler/vol5/home/bknelson/src/Hg19_NecessaryFiles/initInfo -c /net/eichler/vol5/home/bknelson/src/Hg19_NecessaryFiles/AllChro -g /net/eichler/vol5/home/bknelson/src/Hg19_NecessaryFiles/hg19_Gap.Table.USCS.Clean -r /net/eichler/vol5/home/bknelson/src/Hg19_NecessaryFiles/Hg19.Satellite -l {params.gn}.txt -t {params.gn}.ReadName -o {params.gn}.cluster'
 
 rule prep_vh:
-    input: 'manifest.txt', expand('%s/sorted/{sample}.vh' % DISCORDANT_READ_DIR, sample = SAMPLES)
+    input: 'manifest.txt', expand('%s/{sample}.vh' % ALL_DISCO_DIR, sample = SAMPLES)
     output: '%s/{num}.txt' % VH_OUTDIR
     params: sge_opts='-N make_batches'
     run:
         if FAMILY_BATCHES:
-            shell('python ~bnelsj/pipelines/VariationHunter/prep_divet_manifest.py --group_size {VH_GROUP_SIZE} --n_groups {NGROUPS} --manifest {input[0]} --outdir {VH_OUTDIR} --vhdir {DISCORDANT_READ_DIR}/sorted --family {MANIFEST} --family_col_name {FAMILY_COL_NAME} --sample_col_name {SAMPLE_COL_NAME}')
+            shell('python ~bnelsj/pipelines/VariationHunter/prep_divet_manifest.py --group_size {VH_GROUP_SIZE} --n_groups {NGROUPS} --manifest {input[0]} --outdir {VH_OUTDIR} --vhdir {ALL_DISCO_DIR} --family {MANIFEST} --family_col_name {FAMILY_COL_NAME} --sample_col_name {SAMPLE_COL_NAME}')
         else:
-            shell('python ~bnelsj/pipelines/VariationHunter/prep_divet_manifest.py --group_size {VH_GROUP_SIZE} --n_groups {NGROUPS} --manifest {input[0]} --outdir {VH_OUTDIR} --vhdir {DISCORDANT_READ_DIR}/sorted')
+            shell('python ~bnelsj/pipelines/VariationHunter/prep_divet_manifest.py --group_size {VH_GROUP_SIZE} --n_groups {NGROUPS} --manifest {input[0]} --outdir {VH_OUTDIR} --vhdir {ALL_DISCO_DIR}')
 
 rule prep_mei:
-    input: expand('%s/{sample}.bam' % ALL_DISCO_DIR, sample = SAMPLES)
+    input: expand('%s/{sample}.{type}' % ALL_DISCO_DIR, sample = SAMPLES, type = ["fq", "vh"])
     params: sge_opts=''
+
+rule get_vh_files:
+    input: '%s/{sample}.bam' % ALL_DISCO_DIR, "manifest.txt"
+    output: '%s/{sample}.vh' % ALL_DISCO_DIR
+    params: sge_opts="-l mfree=8G -N bam2vh"
+    shell:
+        """python ~bnelsj/stream_read_pair/bwa_vh_pipeline/bam2vh_unpaired.py {input[0]} {input[1]} {wildcards.sample} > {ALL_DISCO_DIR}/unsorted/{wildcards.sample}.vh 2> {ALL_DISCO_DIR}/unsorted/{wildcards.sample}.vh.log; sort -k 1,1 --buffer-size=500M {ALL_DISCO_DIR}/unsorted/{wildcards.sample}.vh > {output}"""
+
+rule convert_bam_to_fastq:
+    input: '%s/{sample}.bam' % ALL_DISCO_DIR
+    output: '%s/{sample}.fq' % ALL_DISCO_DIR
+    params: sge_opts="-l mfree=8G -N bam2fq"
+    shell:
+        """samtools bam2fq {input} > {output}"""
 
 rule get_all_discordant_reads:
     input: '%s/{sample}.%s' % (NODUPS_DIR, MARKED_DUPS_SUFFIX), 'manifest.txt'
     output: '%s/{sample}.bam' % ALL_DISCO_DIR
-    params: sge_opts="-l mfree=8G -N get_disco_rds -cwd", sn='{sample}'
+    params: sge_opts="-l mfree=8G -N get_disco_rds -cwd"
     shell:
-        'python /net/eichler/vol5/home/bnelsj/src/stream_read_pair/stream_sort_pairs.py --input_bam {input[0]} --binary --include_chrs {INCLUDE_CHRS} | python ~bnelsj/stream_read_pair/bwa_vh_pipeline/bam2vh_unpaired.py /dev/stdin {input[1]} {params.sn} --mei > {output} 2> {ALL_DISCO_DIR}/{params.sn}.bam.log'
+        'which python; python /net/eichler/vol5/home/bnelsj/src/stream_read_pair/stream_sort_pairs.py --input_bam {input[0]} --binary --include_chrs {INCLUDE_CHRS} | python ~bnelsj/stream_read_pair/bwa_vh_pipeline/bam2vh_unpaired.py /dev/stdin {input[1]} {wildcards.sample} --mei > {output} 2> {ALL_DISCO_DIR}/{wildcards.sample}.bam.log'
 
 rule sort_discordant_reads:
     input: "%s/unsorted/{sample}.vh" % DISCORDANT_READ_DIR
