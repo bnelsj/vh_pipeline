@@ -4,9 +4,9 @@ import os
 ### Assumes you have run Picard's mark duplicates and insert size calculations
 
 ### Variables that need to be set
-SAMPLE_DIR = '/net/eichler/vol18/jlhudd/human_diversity/remapped_bams'
+SAMPLE_DIR = "/net/eichler/vol18/genomes/moles/CHM1/UW/"
 
-MANIFEST = "/net/eichler/vol23/projects/human_diversity/nobackups/bnelsj/manifest.txt"
+MANIFEST = "manifest.txt"
 
 NODUPS_DIR = SAMPLE_DIR
 
@@ -23,12 +23,14 @@ with open(MANIFEST, "r") as reader:
         if sample not in SAMPLES and sample.startswith("WEA"):
             SAMPLES.append(sample)
 
+SAMPLES = ["CHM1_UW_Illumina.original"]
+
 EXCLUDED_SAMPLES = ["WEA_Georgian_mg27_M", "WEA_Bishkek_28439_F"]
 
 SAMPLES = list(set(SAMPLES) - set(EXCLUDED_SAMPLES))
 
 PICARD_ISIZE_PATH = '.'
-PICARD_ISIZE_METRICS = [os.path.basename(file) for file in os.listdir(PICARD_ISIZE_PATH) if file.endswith('_insert_size_metrics.txt') if any(lambda x: file.startswith(x), SAMPLES)]
+PICARD_ISIZE_METRICS = [os.path.basename(file) for file in os.listdir(PICARD_ISIZE_PATH) if file.endswith('insert_size_metrics.txt') if any(lambda x: file.startswith(x), SAMPLES)]
 
 VH_GROUP_SIZE = 20
 NGROUPS = 8
@@ -51,7 +53,6 @@ GROUPS = [str(x).zfill(len(str(NGROUPS))) for x in range(NGROUPS)]
 ### Snakemake variables that probably don't need to be changed
 
 MANIFEST_DIR = 'manifest'
-OUTFILE = 'manifest.txt'
 ISIZEFILE = 'isizes.txt'
 EDISTFILE = 'edists.txt'
 DISCORDANT_READ_DIR = 'discordant_reads'
@@ -127,7 +128,7 @@ rule run_vh:
         'module load VariationHunter/0.4; VH -i /net/eichler/vol5/home/bknelson/src/Hg19_NecessaryFiles/initInfo -c /net/eichler/vol5/home/bknelson/src/Hg19_NecessaryFiles/AllChro -g /net/eichler/vol5/home/bknelson/src/Hg19_NecessaryFiles/hg19_Gap.Table.USCS.Clean -r /net/eichler/vol5/home/bknelson/src/Hg19_NecessaryFiles/Hg19.Satellite -l {params.gn}.txt -t {params.gn}.ReadName -o {params.gn}.cluster'
 
 rule prep_vh:
-    input: 'manifest.txt', expand('%s/{sample}.vh' % ALL_DISCO_DIR, sample = SAMPLES)
+    input: '%s' % MANIFEST, expand('%s/{sample}.vh' % ALL_DISCO_DIR, sample = SAMPLES)
     output: '%s/{num}.txt' % VH_OUTDIR
     params: sge_opts='-N make_batches'
     run:
@@ -141,42 +142,31 @@ rule prep_mei:
     params: sge_opts=''
 
 rule get_vh_files:
-    input: '%s/{sample}.bam' % ALL_DISCO_DIR, "manifest.txt"
+    input: '%s/{sample}.bam' % ALL_DISCO_DIR, "%s" % MANIFEST
     output: '%s/{sample}.vh' % ALL_DISCO_DIR
     params: sge_opts="-l mfree=8G -N bam2vh"
     shell:
-        """python ~bnelsj/stream_read_pair/bwa_vh_pipeline/bam2vh_unpaired.py {input[0]} {input[1]} {wildcards.sample} > {ALL_DISCO_DIR}/unsorted/{wildcards.sample}.vh 2> {ALL_DISCO_DIR}/unsorted/{wildcards.sample}.vh.log; sort -k 1,1 --buffer-size=500M {ALL_DISCO_DIR}/unsorted/{wildcards.sample}.vh > {output}"""
+        """python ~bnelsj/stream_read_pair/bwa_vh_pipeline/bam2vh_unpaired.py {input[0]} {input[1]} {wildcards.sample} > {ALL_DISCO_DIR}/unsorted/{wildcards.sample}.vh 2> {ALL_DISCO_DIR}/unsorted/{wildcards.sample}.vh.log 
+           sort -k 1,1 --buffer-size=500M {ALL_DISCO_DIR}/unsorted/{wildcards.sample}.vh > {output}"""
 
 rule convert_bam_to_fastq:
-    input: '%s/{sample}.bam' % ALL_DISCO_DIR
-    output: '%s/{sample}.fq' % ALL_DISCO_DIR
+    input: '%s/{sample}.bam' % ALL_DISCO_DIR, "%s/{sample}.lq.bam" % ALL_DISCO_DIR
+    output: '%s/{sample}.fq' % ALL_DISCO_DIR, "%s/{sample}.lq.fq" % ALL_DISCO_DIR
     params: sge_opts="-l mfree=8G -N bam2fq"
     shell:
-        """samtools bam2fq {input} > {output}"""
+        """samtools bam2fq {input[0]} > {output[0]}"""
+        """samtools bam2fq {input[1]} > {output[1]}"""
 
 rule get_all_discordant_reads:
-    input: '%s/{sample}.%s' % (NODUPS_DIR, MARKED_DUPS_SUFFIX), 'manifest.txt'
-    output: '%s/{sample}.bam' % ALL_DISCO_DIR
+    input: '%s/{sample}.%s' % (NODUPS_DIR, MARKED_DUPS_SUFFIX), '%s' % MANIFEST
+    output: '%s/{sample}.bam' % ALL_DISCO_DIR, "%s/{sample}.lq.bam" % ALL_DISCO_DIR
     params: sge_opts="-l mfree=8G -N get_disco_rds -cwd"
     shell:
-        'which python; python /net/eichler/vol5/home/bnelsj/src/stream_read_pair/stream_sort_pairs.py --input_bam {input[0]} --binary --include_chrs {INCLUDE_CHRS} | python ~bnelsj/stream_read_pair/bwa_vh_pipeline/bam2vh_unpaired.py /dev/stdin {input[1]} {wildcards.sample} --mei > {output} 2> {ALL_DISCO_DIR}/{wildcards.sample}.bam.log'
-
-rule sort_discordant_reads:
-    input: "%s/unsorted/{sample}.vh" % DISCORDANT_READ_DIR
-    output: "%s/sorted/{sample, \w+}.vh" % DISCORDANT_READ_DIR
-    params: sge_opts="-l mfree=1G"
-    shell: "sort -k 1,1 --buffer-size=500M {input} > {output}"
-
-rule get_discordant_reads:
-    input: '%s/{sample}.%s' % (NODUPS_DIR, MARKED_DUPS_SUFFIX), 'manifest.txt'
-    output: '%s/unsorted/{sample}.vh' % DISCORDANT_READ_DIR
-    params: sge_opts="-l mfree=8G -N get_disco_rds -cwd", sn='{sample}'
-    shell:
-        'python /net/eichler/vol5/home/bnelsj/src/stream_read_pair/stream_sort_pairs.py --input_bam {input[0]} --binary --include_chrs {INCLUDE_CHRS} | python ~bnelsj/stream_read_pair/bwa_vh_pipeline/bam2vh_unpaired.py /dev/stdin {input[1]} {params.sn} > {DISCORDANT_READ_DIR}/unsorted/{params.sn}.vh 2> {DISCORDANT_READ_DIR}/unsorted/{params.sn}.vh.log'
+        "python /net/eichler/vol5/home/bnelsj/src/stream_read_pair/stream_sort_pairs.py --input_bam {input[0]} --binary --include_chrs {INCLUDE_CHRS} | python ~bnelsj/stream_read_pair/bwa_vh_pipeline/bam2vh_unpaired.py /dev/stdin {input[1]} {wildcards.sample} --low_qual_reads {output[1]} > {output[0]} 2> {ALL_DISCO_DIR}/{wildcards.sample}.bam.log"
 
 rule get_isize_from_picard:
     input: expand('%s/{picard_isize}' % PICARD_ISIZE_PATH, picard_isize = PICARD_ISIZE_METRICS)
-    output: 'manifest.txt'
+    output: '%s' % MANIFEST
     params: sge_opts="-N isize", n_deviations="4", edist="4"
     run:
         outfile = open(output[0], 'w')
@@ -200,10 +190,10 @@ rule get_isize_from_picard:
 
 #rule make_manifest:
 #    input: expand('%s/{sample}.txt' % MANIFEST_DIR, sample = SAMPLES)
-#    output: 'manifest.txt'
+#    output: '%s' % MANIFEST
 #    params: sge_opts="-l mfree=4G -N make_manifest -cwd"
 #    shell:
-#        'cat {MANIFEST_DIR}/*.txt > {OUTFILE}'
+#        'cat {MANIFEST_DIR}/*.txt > {MANIFEST}'
 
 #rule get_isize_from_stream:
 #    input: '%s/{sample}.%s' % (NODUPS_DIR, MARKED_DUPS_SUFFIX), '%s/{sample}.%s.bai' % (NODUPS_DIR, MARKED_DUPS_SUFFIX)
