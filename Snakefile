@@ -10,18 +10,18 @@ MANIFEST = "manifest.txt"
 
 NODUPS_DIR = SAMPLE_DIR
 
-READ_LEN = '100'
+READ_LEN = '101'
 
 ### Build list of samples and determine how they will be split into batches
 ### By default, this uses NGROUPS and not VH_GROUP_SIZE
 ### assigns samples to groups based on family as listed in MANIFEST
 
 SAMPLES = []
-with open(MANIFEST, "r") as reader:
-    for line in reader:
-        sample = line.rstrip().split()[0]
-        if sample not in SAMPLES and sample.startswith("WEA"):
-            SAMPLES.append(sample)
+#with open(MANIFEST, "r") as reader:
+#    for line in reader:
+#        sample = line.rstrip().split()[0]
+#        if sample not in SAMPLES and sample.startswith("WEA"):
+#            SAMPLES.append(sample)
 
 SAMPLES = ["CHM1_UW_Illumina.original"]
 
@@ -29,8 +29,8 @@ EXCLUDED_SAMPLES = ["WEA_Georgian_mg27_M", "WEA_Bishkek_28439_F"]
 
 SAMPLES = list(set(SAMPLES) - set(EXCLUDED_SAMPLES))
 
-PICARD_ISIZE_PATH = '.'
-PICARD_ISIZE_METRICS = [os.path.basename(file) for file in os.listdir(PICARD_ISIZE_PATH) if file.endswith('insert_size_metrics.txt') if any(lambda x: file.startswith(x), SAMPLES)]
+PICARD_ISIZE_PATH = SAMPLE_DIR
+PICARD_ISIZE_METRICS = [os.path.basename(file) for file in os.listdir(PICARD_ISIZE_PATH) if file.endswith('insert_size_metrics.txt') if any(map(lambda x: file.startswith(x), SAMPLES))]
 
 VH_GROUP_SIZE = 20
 NGROUPS = 8
@@ -154,8 +154,8 @@ rule convert_bam_to_fastq:
     output: '%s/{sample}.fq' % ALL_DISCO_DIR, "%s/{sample}.lq.fq" % ALL_DISCO_DIR
     params: sge_opts="-l mfree=8G -N bam2fq"
     shell:
-        """samtools bam2fq {input[0]} > {output[0]}"""
-        """samtools bam2fq {input[1]} > {output[1]}"""
+        """samtools bam2fq {input[0]} > {output[0]}
+           samtools bam2fq {input[1]} > {output[1]}"""
 
 rule get_all_discordant_reads:
     input: '%s/{sample}.%s' % (NODUPS_DIR, MARKED_DUPS_SUFFIX), '%s' % MANIFEST
@@ -167,11 +167,12 @@ rule get_all_discordant_reads:
 rule get_isize_from_picard:
     input: expand('%s/{picard_isize}' % PICARD_ISIZE_PATH, picard_isize = PICARD_ISIZE_METRICS)
     output: '%s' % MANIFEST
-    params: sge_opts="-N isize", n_deviations="4", edist="4"
+    params: sge_opts="-N isize", edist="4"
     run:
+        n_deviations = 3
         outfile = open(output[0], 'w')
         for infile in input:
-            sample_name = os.path.basename(infile.replace('_insert_size_metrics.txt', ''))
+            sample_name = os.path.basename(infile.replace('.insert_size_metrics.txt', ''))
             sample_path = NODUPS_DIR + '/' + sample_name + '.' + MARKED_DUPS_SUFFIX
             with open(infile, 'r') as reader:
                 isize_line = False
@@ -182,10 +183,10 @@ rule get_isize_from_picard:
                     if isize_line:
                         data = line.split()
                         median, stdev = float(data[0]), float(data[5])
-                        min_isize = str(median - 4 * stdev)
-                        max_isize = str(median + 4 * stdev)
+                        min_isize = str(median - n_deviations * stdev)
+                        max_isize = str(median + n_deviations * stdev)
                         break
-            outfile.write('\t'.join([sample_name, sample_path, params.edist, min_isize, max_isize, READ_LEN]) + '\n')
+            outfile.write('\t'.join([sample_name, sample_path, params.edist, min_isize, max_isize, str(READ_LEN)]) + '\n')
         outfile.close()
 
 #rule make_manifest:
