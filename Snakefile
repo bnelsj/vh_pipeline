@@ -146,7 +146,7 @@ rule get_vh_files:
     output: '%s/{sample}.vh' % ALL_DISCO_DIR
     params: sge_opts="-l mfree=8G -N bam2vh"
     shell:
-        """python ~bnelsj/stream_read_pair/bwa_vh_pipeline/bam2vh_unpaired.py {input[0]} {input[1]} {wildcards.sample} > {ALL_DISCO_DIR}/unsorted/{wildcards.sample}.vh 2> {ALL_DISCO_DIR}/unsorted/{wildcards.sample}.vh.log 
+        """python bam2vh_unpaired.py {input[0]} {input[1]} {wildcards.sample} --discordant_reads {output[0]} --discordant_read_format vh
            sort -k 1,1 --buffer-size=500M {ALL_DISCO_DIR}/unsorted/{wildcards.sample}.vh > {output}"""
 
 rule convert_bam_to_fastq:
@@ -162,7 +162,7 @@ rule get_all_discordant_reads:
     output: '%s/{sample}.bam' % ALL_DISCO_DIR, "%s/{sample}.lq.bam" % ALL_DISCO_DIR
     params: sge_opts="-l mfree=8G -N get_disco_rds -cwd"
     shell:
-        "python /net/eichler/vol5/home/bnelsj/src/stream_read_pair/stream_sort_pairs.py --input_bam {input[0]} --binary --include_chrs {INCLUDE_CHRS} | python ~bnelsj/stream_read_pair/bwa_vh_pipeline/bam2vh_unpaired.py /dev/stdin {input[1]} {wildcards.sample} --low_qual_reads {output[1]} > {output[0]} 2> {ALL_DISCO_DIR}/{wildcards.sample}.bam.log"
+        "python /net/eichler/vol5/home/bnelsj/src/stream_read_pair/stream_sort_pairs.py --input_bam {input[0]} --binary --include_chrs {INCLUDE_CHRS} | python bam2vh_unpaired.py /dev/stdin {input[1]} {wildcards.sample} --low_qual_reads {output[1]} --discordant_reads {output[0]} --discordant_read_format bam"
 
 rule get_isize_from_picard:
     input: expand('%s/{picard_isize}' % PICARD_ISIZE_PATH, picard_isize = PICARD_ISIZE_METRICS)
