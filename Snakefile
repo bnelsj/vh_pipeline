@@ -4,7 +4,7 @@ import os
 ### Assumes you have run Picard's mark duplicates and insert size calculations
 
 ### Variables that need to be set
-SAMPLE_DIR = "/net/eichler/vol18/genomes/moles/CHM1/UW/"
+SAMPLE_DIR = "/net/eichler/vol23/projects/human_diversity/nobackups/C_team_bams_nodups"
 
 MANIFEST = "manifest.txt"
 
@@ -17,17 +17,11 @@ READ_LEN = '101'
 ### assigns samples to groups based on family as listed in MANIFEST
 
 SAMPLES = []
-#with open(MANIFEST, "r") as reader:
-#    for line in reader:
-#        sample = line.rstrip().split()[0]
-#        if sample not in SAMPLES and sample.startswith("WEA"):
-#            SAMPLES.append(sample)
-
-SAMPLES = ["CHM1_UW_Illumina.original"]
-
-EXCLUDED_SAMPLES = ["WEA_Georgian_mg27_M", "WEA_Bishkek_28439_F"]
-
-SAMPLES = list(set(SAMPLES) - set(EXCLUDED_SAMPLES))
+with open(MANIFEST, "r") as reader:
+    for line in reader:
+        sample = line.rstrip().split()[0]
+        if sample not in SAMPLES and sample.startswith("WEA"):
+            SAMPLES.append(sample)
 
 PICARD_ISIZE_PATH = SAMPLE_DIR
 PICARD_ISIZE_METRICS = [os.path.basename(file) for file in os.listdir(PICARD_ISIZE_PATH) if file.endswith('insert_size_metrics.txt') if any(map(lambda x: file.startswith(x), SAMPLES))]
@@ -59,14 +53,14 @@ DISCORDANT_READ_DIR = 'discordant_reads'
 ALL_DISCO_DIR = 'all_discordant_reads'
 VH_OUTDIR = 'vh_analysis'
 CALL_DIR = 'calls'
-MARKED_DUPS_SUFFIX = 'sorted.nodups.bam'
+MARKED_DUPS_SUFFIX = 'bam'
 
 CONTIGS = [str(x) for x in range(1,23)] + ['X','Y'] + ['chr' + str(x) for x in range(1,23)] + ['chrX','chrY']
 INCLUDE_CHRS = ':'.join(CONTIGS)
 
 ### Create directories, load modules
 
-dirs_to_check = ['log', MANIFEST_DIR, NODUPS_DIR, VH_OUTDIR, ALL_DISCO_DIR] + [DISCORDANT_READ_DIR + x for x in ["/unsorted", "/sorted"]]
+dirs_to_check = ['log', MANIFEST_DIR, NODUPS_DIR, VH_OUTDIR, ALL_DISCO_DIR] + [ALL_DISCO_DIR + x for x in ["/unsorted", "/sorted"]]
 
 for dir in dirs_to_check:
     if not os.path.exists(dir):
@@ -83,28 +77,28 @@ rule get_dels_per_sample:
     output: '%s/ALL.ed{ed}.ls{ls}.dels_per_sample' % CALL_DIR
     params: sge_opts='-l mfree=8G -N dels_per_sample'
     shell:
-        'python ~bnelsj/pipelines/VariationHunter/get_deletions_per_sample.py {input} {output}'
+        'python get_deletions_per_sample.py {input} {output}'
 
 rule get_p1_denovo:
     input: '%s/ALL.ed{ed}.ls{ls}.del' % CALL_DIR
     output: '%s/ALL.ed{ed}.ls{ls}.p1.denovo' % CALL_DIR
     params: sge_opts='-l mfree=8G -N denovo'    
     shell:
-        'python ~bnelsj/pipelines/VariationHunter/get_denovo.py {input} {output} --manifest {MANIFEST} --family_member p1 --family_col_name {FAMILY_COL_NAME} --sample_col_name {SAMPLE_COL_NAME} --position_col_name {POSITION_COL_NAME}'
+        'python get_denovo.py {input} {output} --manifest {MANIFEST} --family_member p1 --family_col_name {FAMILY_COL_NAME} --sample_col_name {SAMPLE_COL_NAME} --position_col_name {POSITION_COL_NAME}'
 
 rule get_s1_denovo:
     input: '%s/ALL.ed{ed}.ls{ls}.del' % CALL_DIR
     output: '%s/ALL.ed{ed}.ls{ls}.s1.denovo' % CALL_DIR
     params: sge_opts='-l mfree=8G -N denovo'
     shell:
-        'python ~bnelsj/pipelines/VariationHunter/get_denovo.py {input} {output} --manifest {MANIFEST} --family_member s1'
+        'python get_denovo.py {input} {output} --manifest {MANIFEST} --family_member s1'
 
 rule filter_deletions:
     input: '%s/ALL.SV' % VH_OUTDIR
     output: '%s/ALL.ed{ed}.ls{ls}.del' % CALL_DIR
     params: sge_opts='-l mfree=8G -N get_dels'
     shell:
-        'python ~bnelsj/pipelines/VariationHunter/get_deletions.py {input} {output} --max_edist {wildcards.ed} --min_max_lib_support {wildcards.ls}'
+        'python get_deletions.py {input} {output} --max_edist {wildcards.ed} --min_max_lib_support {wildcards.ls}'
 
 rule combine_selections:
     input: expand('%s/{num}.SV' % VH_OUTDIR, num = GROUPS)
@@ -133,9 +127,9 @@ rule prep_vh:
     params: sge_opts='-N make_batches'
     run:
         if FAMILY_BATCHES:
-            shell('python ~bnelsj/pipelines/VariationHunter/prep_divet_manifest.py --group_size {VH_GROUP_SIZE} --n_groups {NGROUPS} --manifest {input[0]} --outdir {VH_OUTDIR} --vhdir {ALL_DISCO_DIR} --family {MANIFEST} --family_col_name {FAMILY_COL_NAME} --sample_col_name {SAMPLE_COL_NAME}')
+            shell('python prep_divet_manifest.py --group_size {VH_GROUP_SIZE} --n_groups {NGROUPS} --manifest {input[0]} --outdir {VH_OUTDIR} --vhdir {ALL_DISCO_DIR} --family {MANIFEST} --family_col_name {FAMILY_COL_NAME} --sample_col_name {SAMPLE_COL_NAME}')
         else:
-            shell('python ~bnelsj/pipelines/VariationHunter/prep_divet_manifest.py --group_size {VH_GROUP_SIZE} --n_groups {NGROUPS} --manifest {input[0]} --outdir {VH_OUTDIR} --vhdir {ALL_DISCO_DIR}')
+            shell('python prep_divet_manifest.py --group_size {VH_GROUP_SIZE} --n_groups {NGROUPS} --manifest {input[0]} --outdir {VH_OUTDIR} --vhdir {ALL_DISCO_DIR}')
 
 rule prep_mei:
     input: expand('%s/{sample}.{type}' % ALL_DISCO_DIR, sample = SAMPLES, type = ["fq", "vh"])

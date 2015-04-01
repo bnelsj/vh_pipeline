@@ -68,7 +68,7 @@ def check_read_pair(read1, read2):
     if(len(read1.seq) != len(read2.seq)):
         return "SIZE_MISMATCH"
 
-    if(self.qlen - math.fabs(read1.pos - read2.pos) > 2):
+    if(len(read1.seq) - math.fabs(read1.pos - read2.pos) > 2):
         return "READS_OVERLAP"
     
     return "GOOD"
