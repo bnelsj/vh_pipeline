@@ -76,36 +76,14 @@ def check_read_pair(read1, read2):
 class VH:
     
     def __init__(self,read1,read2,ins_min,ins_max):
-
-        if(read1.qname != read2.qname):
-            raise MismatchName("Mismatched read names", read1, read2)
-            self.type = "NAME_MISMATCH"
-        
         self.qname = read1.qname
-        if(read1.tid != read2.tid):
-            raise MismatchContig("Mismatched contig names", read1, read2)
-            self.type = "CONTIG_MISMATCH"
-        
         self.tid = read1.tid
         #print str(samfile.getrname(self.contig))
 
-        if(read1.pos == read2.pos):
-            raise Overlap("Reads overlap completely", read1, read2)
-            self.type = "OVERLAP"
-
         self.start1 = read1.pos
         self.start2 = read2.pos
-    
-        if(len(read1.seq) != len(read2.seq)):
-            raise MismatchSize("Mismatched read sizes", read1, read2)    
-            self.type = "SIZE_MISMATCH"
-
         self.qlen = len(read1.seq)
-        
-        if(self.get_overlap() > 2):
-            raise Overlap("Reads overlap by %d (more than 2 bp)" % self.get_overlap(), read1, read2)
-            self.type = "READS_OVERLAP"
-        
+       
         self.end1 = self.qlen + self.start1
         self.end2 = self.qlen + self.start2
 
@@ -120,18 +98,7 @@ class VH:
 
         self.snp1 = max(0,self.edit1 - self.ins1 - self.del1)
         self.snp2 = max(0,self.edit2 - self.ins2 - self.del2)
-
-        if len(read1.qual) == 0:
-            self.type = "NO_QUALITY_STRING"
-            raise NoQuality("No quality string for read 1", read1, read2)
-        elif len(read2.qual) == 0:
-            raise NoQuality("No quality string for read 2", read1, read2)
-
         self.min_quality = min(read1.mapping_quality, read2.mapping_quality)
-
-        if not self.is_high_quality():
-            raise LowQuality("Insufficient mapping quality. Read 1: %d, Read 2: %d" % (read1.mapping_quality, read2.mapping_quality), read1, read2)
-            self.type = "LOW_MAPPING_QUALITY"
 
         self.phred_avg1 = float(sum([ord(x) - 33 for x in read1.qual]))/len(read1.qual)
         self.phred_avg2 = float(sum([ord(x) - 33 for x in read2.qual]))/len(read2.qual)
@@ -151,13 +118,7 @@ class VH:
             self.isize = math.fabs(read2.pos + read2.qend - (read1.pos + read1.qstart))
         else:
             self.isize =  math.fabs(read1.pos + read1.qend - (read2.pos + read2.qstart))
-
-        self.event = self.get_event()
         
-        if self.event == 'O':
-            self.type = "O_EVENT"
-            raise BadEvent("O event given", read1, read2)
-
     def get_overlap(self):
         return self.qlen - math.fabs(self.start1 - self.start2)
 
@@ -290,7 +251,7 @@ if __name__ == '__main__':
                 lq_file.write(read_a)
                 lq_file.write(read_b)
             else:
-                vh_entry = get_event_type(read_a, read_b, min_isize, max_isize)
+                vh_entry = VH(read_a, read_b, min_isize, max_isize).get_event()
                 if vh_entry != "C":
                     if args.discordant_read_format == "bam":
                         discordant_file.write(read_a)
