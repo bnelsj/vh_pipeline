@@ -141,7 +141,7 @@ class VH:
         return math.pow((float(1)/7000 + math.pow(10,(float(avg) * -1 )/10)),indel)
 
     def entry(self):
-        return "\t".join([self.qname,self.get_str_contig(),str(self.start1),str(self.end1),self.get_orientation(self.rev1),"=",str(self.start2),str(self.end2),self.get_orientation(self.rev2),self.event,str(self.edit1+self.edit2),str(self.phred_avg),"%e" % self.get_phred_prob()])
+        return "\t".join([self.qname,self.get_str_contig(),str(self.start1),str(self.end1),self.get_orientation(self.rev1),"=",str(self.start2),str(self.end2),self.get_orientation(self.rev2),self.get_event(),str(self.edit1+self.edit2),str(self.phred_avg),"%e" % self.get_phred_prob()])
 
     def get_orientation(self,rev):
         if rev:
@@ -251,12 +251,12 @@ if __name__ == '__main__':
                 lq_file.write(read_a)
                 lq_file.write(read_b)
             else:
-                vh_entry = VH(read_a, read_b, min_isize, max_isize).get_event()
-                if vh_entry != "C":
+                vh_entry = VH(read_a, read_b, min_isize, max_isize)
+                if vh_entry.get_event() != "C":
                     if args.discordant_read_format == "bam":
                         discordant_file.write(read_a)
                         discordant_file.write(read_b)
                     else:
-                        discordant_file.write(vh_entry.entry())
+                        discordant_file.write(vh_entry.entry() + "\n")
         else:
             sys.stderr.write("%s: %s, %s" % (type, read_a.qname, read_b.qname))
