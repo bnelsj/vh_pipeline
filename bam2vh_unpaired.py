@@ -199,7 +199,7 @@ if __name__ == '__main__':
     parser.add_argument('filename', help="The sam filename")
     parser.add_argument('manifest', help="Path to sample manifest")
     parser.add_argument('sample_name')
-    parser.add_argument('--debug',default=False, action='store_true', help='Debug mode')
+    parser.add_argument('--debug', action='store_true', help='Debug mode with verbose error logging')
     parser.add_argument("--low_qual_reads", default=None, help="Output low quality reads to specified file")
     parser.add_argument("--discordant_reads", default = "/dev/stdout", help="Output discordant reads to specified file (default: %(default)s)")
     parser.add_argument("--discordant_read_format", choices=["bam", "vh"], default = "vh", help="Default: %(default)s")
@@ -248,8 +248,9 @@ if __name__ == '__main__':
 
         if type in ACCEPTABLE_TYPES:
             if type != "GOOD":
-                lq_file.write(read_a)
-                lq_file.write(read_b)
+                if args.low_qual_reads is not None:
+                    lq_file.write(read_a)
+                    lq_file.write(read_b)
             else:
                 vh_entry = VH(read_a, read_b, min_isize, max_isize)
                 if vh_entry.get_event() != "C":
@@ -259,4 +260,5 @@ if __name__ == '__main__':
                     else:
                         discordant_file.write(vh_entry.entry() + "\n")
         else:
-            sys.stderr.write("%s: %s, %s" % (type, read_a.qname, read_b.qname))
+            if args.debug:
+                sys.stderr.write("%s: %s, %s" % (type, read_a.qname, read_b.qname))
