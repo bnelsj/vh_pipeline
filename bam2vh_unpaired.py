@@ -263,4 +263,4 @@ if __name__ == '__main__':
                         discordant_file.write(vh_entry.entry() + "\n")
         else:
             if args.debug:
-                sys.stderr.write("%s: %s, %s" % (type, read_a.qname, read_b.qname))
+                sys.stderr.write("%s: %s, %s\n" % (type, read_a.qname, read_b.qname))
