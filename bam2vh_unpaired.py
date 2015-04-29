@@ -87,8 +87,10 @@ class VH:
         self.end1 = self.qlen + self.start1
         self.end2 = self.qlen + self.start2
 
-        self.edit1 = [x[1] for x in read1.tags if x[0] == 'NM'][0]
-        self.edit2 = [x[1] for x in read2.tags if x[0] == 'NM'][0] 
+        edit_list = [x[1] for x in read1.tags if x[0] == 'NM']
+        self.edit1 = edit_list[0] if len(edit_list) > 0 else 0
+        edit_list = [x[1] for x in read2.tags if x[0] == 'NM']
+        self.edit2 = edit_list[0] if len(edit_list) > 0 else 0
         
         self.ins1 = sum([x[1] for x in read1.cigar if x[0] == 1]) 
         self.ins2 = sum([x[1] for x in read2.cigar if x[0] == 1])
