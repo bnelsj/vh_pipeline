@@ -214,10 +214,10 @@ if __name__ == '__main__':
 
     with open(args.manifest, 'r') as manfile:
         for line in manfile:
-            if line.find(args.sample_name) != -1:
-                dat = line.split('\t')
-                min_isize = float(dat[3])
-                max_isize = float(dat[4])
+            entries = line.rstrip().split("\t")
+            if args.sample_name.startswith(entries[0]):
+                min_isize = float(entries[3])
+                max_isize = float(entries[4])
                 break
 
     try:

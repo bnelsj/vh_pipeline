@@ -16,12 +16,12 @@ READ_LEN = '101'
 ### By default, this uses NGROUPS and not VH_GROUP_SIZE
 ### assigns samples to groups based on family as listed in MANIFEST
 
-SAMPLES = []
-with open(MANIFEST, "r") as reader:
-    for line in reader:
-        sample = line.rstrip().split()[0]
-        if sample not in SAMPLES and sample.startswith("WEA"):
-            SAMPLES.append(sample)
+SAMPLES = ["AFR_BantuKenya_HGDP01414_F"]
+#with open(MANIFEST, "r") as reader:
+#    for line in reader:
+#        sample = line.rstrip().split()[0]
+#        if sample not in SAMPLES and sample.startswith("WEA"):
+#            SAMPLES.append(sample)
 
 PICARD_ISIZE_PATH = SAMPLE_DIR
 PICARD_ISIZE_METRICS = [os.path.basename(file) for file in os.listdir(PICARD_ISIZE_PATH) if file.endswith('insert_size_metrics.txt') if any(map(lambda x: file.startswith(x), SAMPLES))]
@@ -69,79 +69,16 @@ for dir in dirs_to_check:
 ### Begin rule definitions
 
 rule all:
-    input: '%s/ALL.SV' % VH_OUTDIR, expand('%s/ALL.ed{ed}.ls{ls}.{type}' % CALL_DIR, ed = ["1", "2"], ls = ["3","4"], type = ["dels_per_sample", "del", "p1.denovo"])
+    input: expand('%s/{sample}_{ext}.vh' % ALL_DISCO_DIR, sample = SAMPLES, ext=["fast", "lq", "lq_debug", "bamshuf"])
     params: sge_opts=""
 
-rule get_dels_per_sample:
-    input: '%s/ALL.ed{ed}.ls{ls}.del' % CALL_DIR
-    output: '%s/ALL.ed{ed}.ls{ls}.dels_per_sample' % CALL_DIR
-    params: sge_opts='-l mfree=8G -N dels_per_sample'
-    shell:
-        'python get_deletions_per_sample.py {input} {output}'
-
-rule get_p1_denovo:
-    input: '%s/ALL.ed{ed}.ls{ls}.del' % CALL_DIR
-    output: '%s/ALL.ed{ed}.ls{ls}.p1.denovo' % CALL_DIR
-    params: sge_opts='-l mfree=8G -N denovo'    
-    shell:
-        'python get_denovo.py {input} {output} --manifest {MANIFEST} --family_member p1 --family_col_name {FAMILY_COL_NAME} --sample_col_name {SAMPLE_COL_NAME} --position_col_name {POSITION_COL_NAME}'
-
-rule get_s1_denovo:
-    input: '%s/ALL.ed{ed}.ls{ls}.del' % CALL_DIR
-    output: '%s/ALL.ed{ed}.ls{ls}.s1.denovo' % CALL_DIR
-    params: sge_opts='-l mfree=8G -N denovo'
-    shell:
-        'python get_denovo.py {input} {output} --manifest {MANIFEST} --family_member s1'
-
-rule filter_deletions:
-    input: '%s/ALL.SV' % VH_OUTDIR
-    output: '%s/ALL.ed{ed}.ls{ls}.del' % CALL_DIR
-    params: sge_opts='-l mfree=8G -N get_dels'
-    shell:
-        'python get_deletions.py {input} {output} --max_edist {wildcards.ed} --min_max_lib_support {wildcards.ls}'
-
-rule combine_selections:
-    input: expand('%s/{num}.SV' % VH_OUTDIR, num = GROUPS)
-    output: '%s/ALL.SV' % VH_OUTDIR
-    params: sge_opts='-l mfree=8G -N sel_combo'
-    shell:
-        'cat {input} > {output}'
-
-rule run_selection:
-    input: expand('%s/{{num}}.{ext}' % VH_OUTDIR, ext = ['txt', 'ReadName', 'cluster'])
-    output: '%s/{num, \d+}.SV' % VH_OUTDIR
-    params: sge_opts='-l mfree=120G -N vhselection', gn = '%s/{num}' % VH_OUTDIR
-    shell:
-        'module load VariationHunter/0.4; /net/eichler/vol5/home/bknelson/src/Hg19_NecessaryFiles/Selection_VH_New2 -l {params.gn}.txt -r {params.gn}.ReadName -c {params.gn}.cluster -t 1000000000 -o {params.gn}.SV'
-
-rule run_vh:
-    input: '%s/{num}.txt' % VH_OUTDIR
-    output: '%s/{num}.ReadName' % VH_OUTDIR, '%s/{num}.cluster' % VH_OUTDIR
-    params: sge_opts="-l mfree=50G -N run_vh", gn = '%s/{num}' % VH_OUTDIR
-    shell:
-        'module load VariationHunter/0.4; VH -i /net/eichler/vol5/home/bknelson/src/Hg19_NecessaryFiles/initInfo -c /net/eichler/vol5/home/bknelson/src/Hg19_NecessaryFiles/AllChro -g /net/eichler/vol5/home/bknelson/src/Hg19_NecessaryFiles/hg19_Gap.Table.USCS.Clean -r /net/eichler/vol5/home/bknelson/src/Hg19_NecessaryFiles/Hg19.Satellite -l {params.gn}.txt -t {params.gn}.ReadName -o {params.gn}.cluster'
-
-rule prep_vh:
-    input: '%s' % MANIFEST, expand('%s/{sample}.vh' % ALL_DISCO_DIR, sample = SAMPLES)
-    output: '%s/{num}.txt' % VH_OUTDIR
-    params: sge_opts='-N make_batches'
-    run:
-        if FAMILY_BATCHES:
-            shell('python prep_divet_manifest.py --group_size {VH_GROUP_SIZE} --n_groups {NGROUPS} --manifest {input[0]} --outdir {VH_OUTDIR} --vhdir {ALL_DISCO_DIR} --family {MANIFEST} --family_col_name {FAMILY_COL_NAME} --sample_col_name {SAMPLE_COL_NAME}')
-        else:
-            shell('python prep_divet_manifest.py --group_size {VH_GROUP_SIZE} --n_groups {NGROUPS} --manifest {input[0]} --outdir {VH_OUTDIR} --vhdir {ALL_DISCO_DIR}')
-
-rule prep_mei:
-    input: expand('%s/{sample}.{type}' % ALL_DISCO_DIR, sample = SAMPLES, type = ["fq", "vh"])
-    params: sge_opts=''
-
 rule get_vh_files:
-    input: '%s/{sample}.bam' % ALL_DISCO_DIR, "%s" % MANIFEST
-    output: '%s/{sample}.vh' % ALL_DISCO_DIR
+    input: '%s/{sample}_{ext}.bam' % ALL_DISCO_DIR, "%s" % MANIFEST
+    output: '%s/{sample}_{ext}.vh' % ALL_DISCO_DIR
+    benchmark: "benchmarks/{sample}_vh_{ext}.json"
     params: sge_opts="-l mfree=8G -N bam2vh"
     shell:
-        """python bam2vh_unpaired.py {input[0]} {input[1]} {wildcards.sample} --discordant_reads {output[0]} --discordant_read_format vh
-           sort -k 1,1 --buffer-size=500M {ALL_DISCO_DIR}/unsorted/{wildcards.sample}.vh > {output}"""
+        """python bam2vh_unpaired.py {input[0]} {input[1]} {wildcards.sample} --discordant_reads {output[0]} --discordant_read_format vh > {output}"""
 
 rule convert_bam_to_fastq:
     input: '%s/{sample}.bam' % ALL_DISCO_DIR, "%s/{sample}.lq.bam" % ALL_DISCO_DIR
@@ -151,12 +88,37 @@ rule convert_bam_to_fastq:
         """samtools bam2fq {input[0]} > {output[0]}
            samtools bam2fq {input[1]} > {output[1]}"""
 
+rule get_all_discordant_reads_bamshuf:
+    input: '%s/{sample}.%s' % (NODUPS_DIR, MARKED_DUPS_SUFFIX), '%s' % MANIFEST
+    output: '%s/{sample}_bamshuf.bam' % ALL_DISCO_DIR, "%s/{sample}_bamshuf.lq.bam" % ALL_DISCO_DIR
+    benchmark: "benchmarks/{sample}_bamshuf.json"
+    params: sge_opts="-l mfree=8G -N get_disco_rds -cwd -l disk_free=100G"
+    shell:
+        "samtools bamshuf -O {input} /var/tmp/{wildcards.sample} | python bam2vh_unpaired.py /dev/stdin {input[1]} {wildcards.sample} --discordant_reads {output[0]} --discordant_read_format bam --low_qual_reads {output[1]}"
+
 rule get_all_discordant_reads:
     input: '%s/{sample}.%s' % (NODUPS_DIR, MARKED_DUPS_SUFFIX), '%s' % MANIFEST
-    output: '%s/{sample}.bam' % ALL_DISCO_DIR, "%s/{sample}.lq.bam" % ALL_DISCO_DIR
+    output: '%s/{sample}_fast.bam' % ALL_DISCO_DIR
+    benchmark: "benchmarks/{sample}_fast.json"
+    params: sge_opts="-l mfree=8G -N get_disco_rds -cwd"
+    shell:
+        "python /net/eichler/vol5/home/bnelsj/src/stream_read_pair/stream_sort_pairs.py --input_bam {input[0]} --binary --include_chrs {INCLUDE_CHRS} | python bam2vh_unpaired.py /dev/stdin {input[1]} {wildcards.sample} --discordant_reads {output[0]} --discordant_read_format bam"
+
+rule get_all_discordant_reads_lq:
+    input: '%s/{sample}.%s' % (NODUPS_DIR, MARKED_DUPS_SUFFIX), '%s' % MANIFEST
+    output: '%s/{sample}_lq.bam' % ALL_DISCO_DIR, "%s/{sample}_lq.lq.bam" % ALL_DISCO_DIR    
+    benchmark: "benchmarks/{sample}_lq.json"
     params: sge_opts="-l mfree=8G -N get_disco_rds -cwd"
     shell:
         "python /net/eichler/vol5/home/bnelsj/src/stream_read_pair/stream_sort_pairs.py --input_bam {input[0]} --binary --include_chrs {INCLUDE_CHRS} | python bam2vh_unpaired.py /dev/stdin {input[1]} {wildcards.sample} --low_qual_reads {output[1]} --discordant_reads {output[0]} --discordant_read_format bam"
+
+rule get_all_discordant_reads_lq_debug:
+    input: '%s/{sample}.%s' % (NODUPS_DIR, MARKED_DUPS_SUFFIX), '%s' % MANIFEST
+    output: '%s/{sample}_lq_debug.bam' % ALL_DISCO_DIR, "%s/{sample}_lq_debug.lq.bam" % ALL_DISCO_DIR    
+    benchmark: "benchmarks/{sample}_lq_debug.json"
+    params: sge_opts="-l mfree=8G -N get_disco_rds -cwd"
+    shell:
+        "python /net/eichler/vol5/home/bnelsj/src/stream_read_pair/stream_sort_pairs.py --input_bam {input[0]} --binary --include_chrs {INCLUDE_CHRS} | python bam2vh_unpaired.py /dev/stdin {input[1]} {wildcards.sample} --low_qual_reads {output[1]} --discordant_reads {output[0]} --discordant_read_format bam --debug"
 
 rule get_isize_from_picard:
     input: expand('%s/{picard_isize}' % PICARD_ISIZE_PATH, picard_isize = PICARD_ISIZE_METRICS)
