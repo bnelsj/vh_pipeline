@@ -6,7 +6,7 @@ import os
 ### Variables that need to be set
 SAMPLE_DIR = "/net/eichler/vol23/projects/human_diversity/nobackups/C_team_bams_nodups"
 
-MANIFEST = "manifest.txt"
+MANIFEST = "manifest_OCN.txt"
 
 NODUPS_DIR = SAMPLE_DIR
 
@@ -16,12 +16,13 @@ READ_LEN = '101'
 ### By default, this uses NGROUPS and not VH_GROUP_SIZE
 ### assigns samples to groups based on family as listed in MANIFEST
 
-SAMPLES = ["AFR_BantuKenya_HGDP01414_F"]
-#with open(MANIFEST, "r") as reader:
-#    for line in reader:
-#        sample = line.rstrip().split()[0]
-#        if sample not in SAMPLES and sample.startswith("WEA"):
-#            SAMPLES.append(sample)
+SAMPLES = []
+
+with open(MANIFEST, "r") as reader:
+    for line in reader:
+        sample = line.rstrip().split()[0]
+        if sample not in SAMPLES and sample.startswith("OCN"):
+            SAMPLES.append(sample)
 
 PICARD_ISIZE_PATH = SAMPLE_DIR
 PICARD_ISIZE_METRICS = [os.path.basename(file) for file in os.listdir(PICARD_ISIZE_PATH) if file.endswith('insert_size_metrics.txt') if any(map(lambda x: file.startswith(x), SAMPLES))]
@@ -69,13 +70,13 @@ for dir in dirs_to_check:
 ### Begin rule definitions
 
 rule all:
-    input: expand('%s/{sample}_{ext}.vh' % ALL_DISCO_DIR, sample = SAMPLES, ext=["fast", "lq", "lq_debug", "bamshuf"])
+    input: expand('%s/{sample}.vh' % ALL_DISCO_DIR, sample = SAMPLES)
     params: sge_opts=""
 
 rule get_vh_files:
-    input: '%s/{sample}_{ext}.bam' % ALL_DISCO_DIR, "%s" % MANIFEST
-    output: '%s/{sample}_{ext}.vh' % ALL_DISCO_DIR
-    benchmark: "benchmarks/{sample}_vh_{ext}.json"
+    input: '%s/{sample}.bam' % ALL_DISCO_DIR, "%s" % MANIFEST
+    output: '%s/{sample}.vh' % ALL_DISCO_DIR
+    benchmark: "benchmarks/{sample}_vh.json"
     params: sge_opts="-l mfree=8G -N bam2vh"
     shell:
         """python bam2vh_unpaired.py {input[0]} {input[1]} {wildcards.sample} --discordant_reads {output[0]} --discordant_read_format vh > {output}"""
@@ -88,37 +89,13 @@ rule convert_bam_to_fastq:
         """samtools bam2fq {input[0]} > {output[0]}
            samtools bam2fq {input[1]} > {output[1]}"""
 
-rule get_all_discordant_reads_bamshuf:
-    input: '%s/{sample}.%s' % (NODUPS_DIR, MARKED_DUPS_SUFFIX), '%s' % MANIFEST
-    output: '%s/{sample}_bamshuf.bam' % ALL_DISCO_DIR, "%s/{sample}_bamshuf.lq.bam" % ALL_DISCO_DIR
-    benchmark: "benchmarks/{sample}_bamshuf.json"
-    params: sge_opts="-l mfree=8G -N get_disco_rds -cwd -l disk_free=100G"
-    shell:
-        "samtools bamshuf -O {input} /var/tmp/{wildcards.sample} | python bam2vh_unpaired.py /dev/stdin {input[1]} {wildcards.sample} --discordant_reads {output[0]} --discordant_read_format bam --low_qual_reads {output[1]}"
-
 rule get_all_discordant_reads:
     input: '%s/{sample}.%s' % (NODUPS_DIR, MARKED_DUPS_SUFFIX), '%s' % MANIFEST
-    output: '%s/{sample}_fast.bam' % ALL_DISCO_DIR
-    benchmark: "benchmarks/{sample}_fast.json"
-    params: sge_opts="-l mfree=8G -N get_disco_rds -cwd"
+    output: '%s/{sample}.bam' % ALL_DISCO_DIR, "%s/{sample}.lq.bam" % ALL_DISCO_DIR
+    benchmark: "benchmarks/{sample}.json"
+    params: sge_opts="-l mfree=8G -N get_disco_rds -cwd -l disk_free=100G"
     shell:
-        "python /net/eichler/vol5/home/bnelsj/src/stream_read_pair/stream_sort_pairs.py --input_bam {input[0]} --binary --include_chrs {INCLUDE_CHRS} | python bam2vh_unpaired.py /dev/stdin {input[1]} {wildcards.sample} --discordant_reads {output[0]} --discordant_read_format bam"
-
-rule get_all_discordant_reads_lq:
-    input: '%s/{sample}.%s' % (NODUPS_DIR, MARKED_DUPS_SUFFIX), '%s' % MANIFEST
-    output: '%s/{sample}_lq.bam' % ALL_DISCO_DIR, "%s/{sample}_lq.lq.bam" % ALL_DISCO_DIR    
-    benchmark: "benchmarks/{sample}_lq.json"
-    params: sge_opts="-l mfree=8G -N get_disco_rds -cwd"
-    shell:
-        "python /net/eichler/vol5/home/bnelsj/src/stream_read_pair/stream_sort_pairs.py --input_bam {input[0]} --binary --include_chrs {INCLUDE_CHRS} | python bam2vh_unpaired.py /dev/stdin {input[1]} {wildcards.sample} --low_qual_reads {output[1]} --discordant_reads {output[0]} --discordant_read_format bam"
-
-rule get_all_discordant_reads_lq_debug:
-    input: '%s/{sample}.%s' % (NODUPS_DIR, MARKED_DUPS_SUFFIX), '%s' % MANIFEST
-    output: '%s/{sample}_lq_debug.bam' % ALL_DISCO_DIR, "%s/{sample}_lq_debug.lq.bam" % ALL_DISCO_DIR    
-    benchmark: "benchmarks/{sample}_lq_debug.json"
-    params: sge_opts="-l mfree=8G -N get_disco_rds -cwd"
-    shell:
-        "python /net/eichler/vol5/home/bnelsj/src/stream_read_pair/stream_sort_pairs.py --input_bam {input[0]} --binary --include_chrs {INCLUDE_CHRS} | python bam2vh_unpaired.py /dev/stdin {input[1]} {wildcards.sample} --low_qual_reads {output[1]} --discordant_reads {output[0]} --discordant_read_format bam --debug"
+        "samtools bamshuf -O {input[0]} /var/tmp/{wildcards.sample} | python bam2vh_unpaired.py /dev/stdin {input[1]} {wildcards.sample} --discordant_reads {output[0]} --discordant_read_format bam --low_qual_reads {output[1]}"
 
 rule get_isize_from_picard:
     input: expand('%s/{picard_isize}' % PICARD_ISIZE_PATH, picard_isize = PICARD_ISIZE_METRICS)
