@@ -17,12 +17,11 @@ READ_LEN = '101'
 ### assigns samples to groups based on family as listed in MANIFEST
 
 SAMPLES = []
+SAMPLE_SUFFIX = ".bam"
 
-with open(MANIFEST, "r") as reader:
-    for line in reader:
-        sample = line.rstrip().split()[0]
-        if sample not in SAMPLES: #and (sample.startswith("OCN") or sample.startswith("AMR") or sample.startswith("SA")):
-            SAMPLES.append(sample)
+for file in os.listdir(SAMPLE_DIR):
+    if file.endswith(SAMPLE_SUFFIX):
+        SAMPLES.append(file.replace(SAMPLE_SUFFIX, ""))
 
 PICARD_ISIZE_PATH = SAMPLE_DIR
 PICARD_ISIZE_METRICS = [os.path.basename(file) for file in os.listdir(PICARD_ISIZE_PATH) if file.endswith('insert_size_metrics.txt') if any(map(lambda x: file.startswith(x), SAMPLES))]
@@ -44,6 +43,7 @@ if not FAMILY_BATCHES:
         NGROUPS += 1
 
 GROUPS = [str(x).zfill(len(str(NGROUPS))) for x in range(NGROUPS)]
+SUFFIX_LIST = [str(x).zfill(len(str(NGROUPS))) for x in range(NGROUPS)]
 
 ### Snakemake variables that probably don't need to be changed
 
@@ -70,6 +70,66 @@ for dir in dirs_to_check:
 ### Begin rule definitions
 
 rule all:
+    input: expand('%s/{num}.SV' % VH_OUTDIR, num = SUFFIX_LIST), expand('%s/ALL.ed{ed}.ls{ls}.{type}' % CALL_DIR, ed = ["1", "2"], ls = ["3","4"], type = ["dels_per_sample", "del", "s1.denovo", "p1.denovo"])
+    params: sge_opts=""
+
+rule get_dels_per_sample:
+    input: '%s/ALL.ed{ed}.ls{ls}.del' % CALL_DIR
+    output: '%s/ALL.ed{ed}.ls{ls}.dels_per_sample' % CALL_DIR
+    params: sge_opts='-l mfree=8G -N dels_per_sample'
+    shell:
+        'python ~bnelsj/pipelines/VariationHunter/get_deletions_per_sample.py {input} {output}'
+
+rule get_p1_denovo:
+    input: '%s/ALL.ed{ed}.ls{ls}.del' % CALL_DIR
+    output: '%s/ALL.ed{ed}.ls{ls}.p1.denovo' % CALL_DIR
+    params: sge_opts='-l mfree=8G -N denovo'    
+    shell:
+        'python ~bnelsj/pipelines/VariationHunter/get_denovo.py {input} {output} --manifest {MANIFEST} --family_member p1'
+
+rule get_s1_denovo:
+    input: '%s/ALL.ed{ed}.ls{ls}.del' % CALL_DIR
+    output: '%s/ALL.ed{ed}.ls{ls}.s1.denovo' % CALL_DIR
+    params: sge_opts='-l mfree=8G -N denovo'
+    shell:
+        'python ~bnelsj/pipelines/VariationHunter/get_denovo.py {input} {output} --manifest {MANIFEST} --family_member s1'
+
+rule combine_deletions:
+    input: expand('%s/{num}.ed{{ed}}.ls{{ls}}.del' % CALL_DIR, num = SUFFIX_LIST)
+    output: '%s/ALL.ed{ed}.ls{ls}.del' % CALL_DIR
+    params: sge_opts='-l mfree=8G -N del_combine'
+    shell:
+        'cat {input} > {output}'
+
+rule filter_deletions:
+    input: '%s/{num}.SV' % VH_OUTDIR
+    output: '%s/{num}.ed{ed}.ls{ls}.del' % CALL_DIR
+    params: sge_opts='-l mfree=8G -N get_dels'
+    shell:
+        'python ~bnelsj/pipelines/VariationHunter/get_deletions.py {input} {output} --max_edist {wildcards.ed} --min_max_lib_support {wildcards.ls}'
+
+rule run_selection:
+    input: expand('%s/{{num}}.{ext}' % VH_OUTDIR, ext = ['txt', 'ReadName', 'cluster'])
+    output: '%s/{num}.SV' % VH_OUTDIR
+    params: sge_opts='-l mfree=80G -N vhselection', gn = '%s/{num}' % VH_OUTDIR
+    shell:
+        'module load VariationHunter/0.4; /net/eichler/vol5/home/bknelson/src/Hg19_NecessaryFiles/Selection_VH_New2 -l {params.gn}.txt -r {params.gn}.ReadName -c {params.gn}.cluster -t 1000000000 -o {params.gn}.SV'
+
+rule run_vh:
+    input: '%s/{num}.txt' % VH_OUTDIR
+    output: '%s/{num}.ReadName' % VH_OUTDIR, '%s/{num}.cluster' % VH_OUTDIR
+    params: sge_opts="-l mfree=80G -N run_vh", gn = '%s/{num}' % VH_OUTDIR
+    shell:
+        'module load VariationHunter/0.4; VH -i /net/eichler/vol5/home/bknelson/src/Hg19_NecessaryFiles/initInfo -c /net/eichler/vol5/home/bknelson/src/Hg19_NecessaryFiles/AllChro -g /net/eichler/vol5/home/bknelson/src/Hg19_NecessaryFiles/hg19_Gap.Table.USCS.Clean -r /net/eichler/vol5/home/bknelson/src/Hg19_NecessaryFiles/Hg19.Satellite -l {params.gn}.txt -t {params.gn}.ReadName -o {params.gn}.cluster'
+
+rule prep_vh:
+    input: 'manifest.txt', expand('%s/{sample}.vh' % ALL_DISCO_DIR, sample = SAMPLES)
+    output: '{vhdir}/{num}.txt'.format(num=num, vhdir=VH_OUTDIR) for num in SUFFIX_LIST
+    params: sge_opts='-N make_batches'
+    shell:
+        'python ~bnelsj/pipelines/VariationHunter/prep_divet_manifest.py --group_size {VH_GROUP_SIZE} --n_groups {NGROUPS} --manifest {input[0]} --outdir {VH_OUTDIR} --vhdir {ALL_DISCO_DIR}'
+
+rule do_get_vh_files:
     input: expand('%s/{sample}.vh' % ALL_DISCO_DIR, sample = SAMPLES)
     params: sge_opts=""
 
