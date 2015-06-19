@@ -205,6 +205,7 @@ if __name__ == '__main__':
     parser.add_argument("--low_qual_reads", default=None, help="Output low quality reads to specified file")
     parser.add_argument("--discordant_reads", default = "/dev/stdout", help="Output discordant reads to specified file (default: %(default)s)")
     parser.add_argument("--discordant_read_format", choices=["bam", "vh"], default = "vh", help="Default: %(default)s")
+    parser.add_argument("--check_sq", action="store_true", help="Check SQ flag in input bam header")
     args = parser.parse_args()
 
     ACCEPTABLE_TYPES = ["GOOD"]
@@ -229,7 +230,7 @@ if __name__ == '__main__':
         sys.stderr.write('Min isize %d must be less than max isize %d.' % (min_isize, max_isize))
         sys.exit(1)
 
-    samfile = pysam.Samfile(args.filename)
+    samfile = pysam.Samfile(args.filename, check_sq = args.check_sq)
 
     if args.low_qual_reads is not None:
         lq_file = pysam.Samfile(args.low_qual_reads, 'wb', template=samfile)

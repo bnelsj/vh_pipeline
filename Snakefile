@@ -6,7 +6,7 @@ import os
 ### Variables that need to be set
 SAMPLE_DIR = "/net/eichler/vol23/projects/human_diversity/nobackups/C_team_bams_nodups"
 
-MANIFEST = "manifest_OCN.txt"
+MANIFEST = "manifest.txt"
 
 NODUPS_DIR = SAMPLE_DIR
 
@@ -21,7 +21,7 @@ SAMPLES = []
 with open(MANIFEST, "r") as reader:
     for line in reader:
         sample = line.rstrip().split()[0]
-        if sample not in SAMPLES and sample.startswith("OCN"):
+        if sample not in SAMPLES: #and (sample.startswith("OCN") or sample.startswith("AMR") or sample.startswith("SA")):
             SAMPLES.append(sample)
 
 PICARD_ISIZE_PATH = SAMPLE_DIR
@@ -93,9 +93,9 @@ rule get_all_discordant_reads:
     input: '%s/{sample}.%s' % (NODUPS_DIR, MARKED_DUPS_SUFFIX), '%s' % MANIFEST
     output: '%s/{sample}.bam' % ALL_DISCO_DIR, "%s/{sample}.lq.bam" % ALL_DISCO_DIR
     benchmark: "benchmarks/{sample}.json"
-    params: sge_opts="-l mfree=8G -N get_disco_rds -cwd -l disk_free=100G"
+    params: sge_opts="-l mfree=8G -N get_disco_rds -cwd -l disk_free=200G"
     shell:
-        "samtools bamshuf -O {input[0]} /var/tmp/{wildcards.sample} | python bam2vh_unpaired.py /dev/stdin {input[1]} {wildcards.sample} --discordant_reads {output[0]} --discordant_read_format bam --low_qual_reads {output[1]}"
+        "samtools bamshuf -O {input[0]} $TMPDIR/{wildcards.sample} | python bam2vh_unpaired.py /dev/stdin {input[1]} {wildcards.sample} --discordant_reads {output[0]} --discordant_read_format bam --low_qual_reads {output[1]}"
 
 rule get_isize_from_picard:
     input: expand('%s/{picard_isize}' % PICARD_ISIZE_PATH, picard_isize = PICARD_ISIZE_METRICS)
