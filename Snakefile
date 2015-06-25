@@ -23,9 +23,8 @@ for file in os.listdir(SAMPLE_DIR):
     if file.endswith(SAMPLE_SUFFIX):
         SAMPLES.append(file.replace(SAMPLE_SUFFIX, ""))
 
-PICARD_ISIZE_PATH = SAMPLE_DIR
+PICARD_ISIZE_PATH = "isizes"
 PICARD_ISIZE_SUFFIX = "insert_size_metrics.txt"
-PICARD_ISIZE_METRICS = [os.path.basename(file) for file in os.listdir(PICARD_ISIZE_PATH) if file.endswith(PICARD_ISIZE_SUFFIX) if any(map(lambda x: file.startswith(x), SAMPLES))]
 
 VH_GROUP_SIZE = 20
 NGROUPS = 8
