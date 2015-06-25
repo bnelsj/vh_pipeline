@@ -4,13 +4,13 @@ import os
 ### Assumes you have run Picard's mark duplicates and insert size calculations
 
 ### Variables that need to be set
-SAMPLE_DIR = "/net/eichler/vol23/projects/human_diversity/nobackups/C_team_bams_nodups"
+SAMPLE_DIR = "/net/eichler/vol24/projects/human_diversity/nobackups/C_team_bwa_mappings/renamed"
 
 MANIFEST = "manifest.txt"
 
 NODUPS_DIR = SAMPLE_DIR
 
-READ_LEN = '101'
+READ_LEN = '100'
 
 ### Build list of samples and determine how they will be split into batches
 ### By default, this uses NGROUPS and not VH_GROUP_SIZE
@@ -24,7 +24,8 @@ for file in os.listdir(SAMPLE_DIR):
         SAMPLES.append(file.replace(SAMPLE_SUFFIX, ""))
 
 PICARD_ISIZE_PATH = SAMPLE_DIR
-PICARD_ISIZE_METRICS = [os.path.basename(file) for file in os.listdir(PICARD_ISIZE_PATH) if file.endswith('insert_size_metrics.txt') if any(map(lambda x: file.startswith(x), SAMPLES))]
+PICARD_ISIZE_SUFFIX = "insert_size_metrics.txt"
+PICARD_ISIZE_METRICS = [os.path.basename(file) for file in os.listdir(PICARD_ISIZE_PATH) if file.endswith(PICARD_ISIZE_SUFFIX) if any(map(lambda x: file.startswith(x), SAMPLES))]
 
 VH_GROUP_SIZE = 20
 NGROUPS = 8
@@ -71,43 +72,8 @@ for dir in dirs_to_check:
 ### Begin rule definitions
 
 rule all:
-    input: expand('%s/{num}.SV' % VH_OUTDIR, num = SUFFIX_LIST), expand('%s/ALL.ed{ed}.ls{ls}.{type}' % CALL_DIR, ed = ["1", "2"], ls = ["3","4"], type = ["dels_per_sample", "del", "s1.denovo", "p1.denovo"])
+    input: expand('%s/{num}.SV' % VH_OUTDIR, num = SUFFIX_LIST)
     params: sge_opts=""
-
-rule get_dels_per_sample:
-    input: '%s/ALL.ed{ed}.ls{ls}.del' % CALL_DIR
-    output: '%s/ALL.ed{ed}.ls{ls}.dels_per_sample' % CALL_DIR
-    params: sge_opts='-l mfree=8G -N dels_per_sample'
-    shell:
-        'python ~bnelsj/pipelines/VariationHunter/get_deletions_per_sample.py {input} {output}'
-
-rule get_p1_denovo:
-    input: '%s/ALL.ed{ed}.ls{ls}.del' % CALL_DIR
-    output: '%s/ALL.ed{ed}.ls{ls}.p1.denovo' % CALL_DIR
-    params: sge_opts='-l mfree=8G -N denovo'    
-    shell:
-        'python ~bnelsj/pipelines/VariationHunter/get_denovo.py {input} {output} --manifest {MANIFEST} --family_member p1'
-
-rule get_s1_denovo:
-    input: '%s/ALL.ed{ed}.ls{ls}.del' % CALL_DIR
-    output: '%s/ALL.ed{ed}.ls{ls}.s1.denovo' % CALL_DIR
-    params: sge_opts='-l mfree=8G -N denovo'
-    shell:
-        'python ~bnelsj/pipelines/VariationHunter/get_denovo.py {input} {output} --manifest {MANIFEST} --family_member s1'
-
-rule combine_deletions:
-    input: expand('%s/{num}.ed{{ed}}.ls{{ls}}.del' % CALL_DIR, num = SUFFIX_LIST)
-    output: '%s/ALL.ed{ed}.ls{ls}.del' % CALL_DIR
-    params: sge_opts='-l mfree=8G -N del_combine'
-    shell:
-        'cat {input} > {output}'
-
-rule filter_deletions:
-    input: '%s/{num}.SV' % VH_OUTDIR
-    output: '%s/{num}.ed{ed}.ls{ls}.del' % CALL_DIR
-    params: sge_opts='-l mfree=8G -N get_dels'
-    shell:
-        'python ~bnelsj/pipelines/VariationHunter/get_deletions.py {input} {output} --max_edist {wildcards.ed} --min_max_lib_support {wildcards.ls}'
 
 rule split_del_by_chr:
     input: "%s/ALL.SV.DEL" % "svs"
@@ -180,14 +146,14 @@ rule get_all_discordant_reads:
         "samtools bamshuf -O {input[0]} $TMPDIR/{wildcards.sample} | python bam2vh_unpaired.py /dev/stdin {input[1]} {wildcards.sample} --discordant_reads {output[0]} --discordant_read_format bam --low_qual_reads {output[1]}"
 
 rule get_isize_from_picard:
-    input: expand('%s/{picard_isize}' % PICARD_ISIZE_PATH, picard_isize = PICARD_ISIZE_METRICS)
+    input: expand("%s/{sample}.%s" % (PICARD_ISIZE_PATH, PICARD_ISIZE_SUFFIX), sample = SAMPLES)
     output: '%s' % MANIFEST
     params: sge_opts="-N isize", edist="4"
     run:
         n_deviations = 3
         outfile = open(output[0], 'w')
         for infile in input:
-            sample_name = os.path.basename(infile.replace('.insert_size_metrics.txt', ''))
+            sample_name = os.path.basename(infile.replace(PICARD_ISIZE_SUFFIX, ''))
             sample_path = NODUPS_DIR + '/' + sample_name + '.' + MARKED_DUPS_SUFFIX
             with open(infile, 'r') as reader:
                 isize_line = False
@@ -204,6 +170,13 @@ rule get_isize_from_picard:
             outfile.write('\t'.join([sample_name, sample_path, params.edist, min_isize, max_isize, str(READ_LEN)]) + '\n')
         outfile.close()
 
+rule calc_isize_picard:
+    input: '%s/{sample}.%s' % (NODUPS_DIR, MARKED_DUPS_SUFFIX)
+    output: "%s/{sample}.%s" % (PICARD_ISIZE_PATH, PICARD_ISIZE_SUFFIX)
+    params: sge_opts = "-l mfree=8G -N isize_picard"
+    shell:
+        """module load java/7u17 picard/1.111; """
+        """java -Xmx8G -jar $PICARD_DIR/CollectInsertSizeMetrics.jar I={input} O={output} H={output}.hist"""
 #rule make_manifest:
 #    input: expand('%s/{sample}.txt' % MANIFEST_DIR, sample = SAMPLES)
 #    output: '%s' % MANIFEST
