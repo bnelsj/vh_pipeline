@@ -56,7 +56,8 @@ VH_OUTDIR = 'vh_analysis'
 CALL_DIR = 'calls'
 MARKED_DUPS_SUFFIX = 'bam'
 
-CONTIGS = [str(x) for x in range(1,23)] + ['X','Y'] + ['chr' + str(x) for x in range(1,23)] + ['chrX','chrY']
+CHR_CONTIGS = ['chr' + str(x) for x in range(1,23)] + ['chrX','chrY']
+CONTIGS = [str(x) for x in range(1,23)] + ['X','Y'] + CHR_CONTIGS
 INCLUDE_CHRS = ':'.join(CONTIGS)
 
 ### Create directories, load modules
@@ -107,6 +108,27 @@ rule filter_deletions:
     params: sge_opts='-l mfree=8G -N get_dels'
     shell:
         'python ~bnelsj/pipelines/VariationHunter/get_deletions.py {input} {output} --max_edist {wildcards.ed} --min_max_lib_support {wildcards.ls}'
+
+rule split_del_by_chr:
+    input: "%s/ALL.SV.DEL" % "svs"
+    output: "svs/{chr}.DEL"
+    params: sge_opts = ""
+    run:
+        for chr in CHR_CONTIGS:
+            shell("grep -w {chr} {input[0]} > svs/{chr}.SV")
+            
+rule filter_deletions:
+    input: "%s/ALL.SV" % VH_OUTDIR
+    output: "%s/ALL.SV.DEL" % "svs"
+    params: sge_opts = ""
+    shell:
+        "grep SVtype:D {input[0]} > {output}"
+
+rule combine_sv:
+    input: expand("%s/{num}.SV" % VH_OUTDIR, num = SUFFIX_LIST)
+    output: "%s/ALL.SV" % VH_OUTDIR
+    params: sge_opts = ""
+    shell: "cat {input} > {output}"
 
 rule run_selection:
     input: expand('%s/{{num}}.{ext}' % VH_OUTDIR, ext = ['txt', 'ReadName', 'cluster'])
