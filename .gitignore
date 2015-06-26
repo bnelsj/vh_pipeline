@@ -1,0 +1,4 @@
+.snakemake/
+isizes/
+log/
+manifest.txt
