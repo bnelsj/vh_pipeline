@@ -224,10 +224,10 @@ if __name__ == '__main__':
     try:
         assert(min_isize < max_isize)
     except NameError:
-        sys.stderr.write('Sample name %s not found in manifest %s' % (args.sample_name, args.manifest))
+        sys.stderr.write('Sample name %s not found in manifest %s\n' % (args.sample_name, args.manifest))
         sys.exit(1)
     except AssertionError:
-        sys.stderr.write('Min isize %d must be less than max isize %d.' % (min_isize, max_isize))
+        sys.stderr.write('Min isize %d must be less than max isize %d.\n' % (min_isize, max_isize))
         sys.exit(1)
 
     samfile = pysam.Samfile(args.filename, check_sq = args.check_sq)
