@@ -15,6 +15,8 @@ READ_LEN = '100'
 WHAM_PATH = "/net/eichler/vol5/home/bnelsj/src/wham"
 REFERENCE_FASTA = "/net/eichler/vol2/eee_shared/assemblies/human_1kg_v37/human_1kg_v37.fasta"
 
+ruleorder: get_isize_from_picard > get_isize_from_wham
+
 ### Build list of samples and determine how they will be split into batches
 ### By default, this uses NGROUPS and not VH_GROUP_SIZE
 ### assigns samples to groups based on family as listed in MANIFEST
@@ -141,7 +143,7 @@ rule convert_bam_to_fastq:
            samtools bam2fq {input[1]} > {output[1]}"""
 
 rule get_all_discordant_reads:
-    input: '%s/{sample}.%s' % (NODUPS_DIR, MARKED_DUPS_SUFFIX), '%s' % MANIFEST
+    input: '%s/{sample}.%s' % (NODUPS_DIR, MARKED_DUPS_SUFFIX), MANIFEST
     output: '%s/{sample}.bam' % ALL_DISCO_DIR, "%s/{sample}.lq.bam" % ALL_DISCO_DIR
     benchmark: "benchmarks/{sample}.json"
     params: sge_opts="-l mfree=8G -N get_disco_rds -cwd -l disk_free=200G"
@@ -154,7 +156,7 @@ rule get_isize_from_wham:
     params: sge_opts = "-N isize", edist="4"
     run:
         n_deviations = 3
-         for infile in input:
+        for infile in input:
             sample_name = os.path.basename(infile.replace("." + PICARD_ISIZE_SUFFIX, ''))
             sample_path = NODUPS_DIR + '/' + sample_name + '.' + MARKED_DUPS_SUFFIX
             with open(infile, 'r') as reader:
