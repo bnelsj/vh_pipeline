@@ -10,7 +10,9 @@ MANIFEST = "manifest.txt"
 
 NODUPS_DIR = SAMPLE_DIR
 
-READ_LEN = '100'
+READ_LEN = "100"
+EDIST = 4
+N_DEV = 3
 
 WHAM_PATH = "/net/eichler/vol5/home/bnelsj/src/wham"
 REFERENCE_FASTA = "/net/eichler/vol2/eee_shared/assemblies/human_1kg_v37/human_1kg_v37.fasta"
@@ -153,9 +155,8 @@ rule get_all_discordant_reads:
 rule get_isize_from_wham:
     input: expand("%s/{sample}.%s" % (ISIZE_PATH, WHAM_ISIZE_SUFFIX), sample = SAMPLES)
     output: "%s" % MANIFEST
-    params: sge_opts = "-N isize", edist="4"
+    params: sge_opts = "-N isize"
     run:
-        n_deviations = 3
         outfile = open(output[0], "w")
         for infile in input:
             sample_name = os.path.basename(infile.replace("." + PICARD_ISIZE_SUFFIX, ''))
@@ -168,19 +169,18 @@ rule get_isize_from_wham:
                     elif "sd insert length" in line:
                         sd_isize = float(line.rstrip().split()[-1])
                     if median_isize is not None and sd_isize is not None:
-                        min_isize = str(int(median_isize - n_deviations * sd_isize))
-                        max_isize = str(int(median_isize - n_deviations * sd_isize))
+                        min_isize = str(int(median_isize - N_DEV * sd_isize))
+                        max_isize = str(int(median_isize + N_DEV * sd_isize))
                         break
-            outfile.write('\t'.join([sample_name, sample_path, params.edist, min_isize, max_isize, str(READ_LEN)]) + '\n')
+            outfile.write('\t'.join([sample_name, sample_path, str(EDIST), min_isize, max_isize, str(READ_LEN)]) + '\n')
         outfile.close()
        
 
 rule get_isize_from_picard:
     input: expand("%s/{sample}.%s" % (ISIZE_PATH, PICARD_ISIZE_SUFFIX), sample = SAMPLES)
     output: '%s' % MANIFEST
-    params: sge_opts="-N isize", edist="4"
+    params: sge_opts="-N isize"
     run:
-        n_deviations = 3
         outfile = open(output[0], 'w')
         for infile in input:
             sample_name = os.path.basename(infile.replace("." + PICARD_ISIZE_SUFFIX, ''))
@@ -194,10 +194,10 @@ rule get_isize_from_picard:
                     if isize_line:
                         data = line.split()
                         median, stdev = float(data[0]), float(data[5])
-                        min_isize = str(median - n_deviations * stdev)
-                        max_isize = str(median + n_deviations * stdev)
+                        min_isize = str(median - N_DEV * stdev)
+                        max_isize = str(median + N_DEV * stdev)
                         break
-            outfile.write('\t'.join([sample_name, sample_path, params.edist, min_isize, max_isize, str(READ_LEN)]) + '\n')
+            outfile.write('\t'.join([sample_name, sample_path, str(EDIST), min_isize, max_isize, str(READ_LEN)]) + '\n')
         outfile.close()
 
 rule calc_isize_picard:
