@@ -159,7 +159,7 @@ rule get_isize_from_wham:
     run:
         outfile = open(output[0], "w")
         for infile in input:
-            sample_name = os.path.basename(infile.replace("." + PICARD_ISIZE_SUFFIX, ''))
+            sample_name = os.path.basename(infile.replace("." + WHAM_ISIZE_SUFFIX, ''))
             sample_path = NODUPS_DIR + '/' + sample_name + '.' + MARKED_DUPS_SUFFIX
             with open(infile, 'r') as reader:
                 median_isize, sd_isize = None, None
