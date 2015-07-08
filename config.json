@@ -1,0 +1,23 @@
+{
+	"sample_dir": "/net/eichler/vol24/projects/human_diversity/nobackups/C_team_bwa_mappings/hgdp_1kg_overlap/",
+	"nodups_dir": False,
+	"manifest": "manifest.txt",
+	"wham_path": "/net/eichler/vol5/home/bnelsj/src/wham",
+	"vh_module": "VariationHunter/0.4",
+	"vh_cluster": "VH",
+	"vh_selection": "/net/eichler/vol5/home/bknelson/src/Hg19_NecessaryFiles/Selection_VH_New2",
+	"vh_init_info": "/net/eichler/vol5/home/bknelson/src/Hg19_NecessaryFiles/initInfo",
+	"vh_contig_chunks": "/net/eichler/vol5/home/bknelson/src/Hg19_NecessaryFiles/AllChro",
+	 
+	"isize_mode": "wham",
+
+	"reference": "hg19",
+	"edist": 4,
+	"n_dev": 3,
+	"read_length": 100,
+	"ref_files": {
+		"ref_fasta": "/net/eichler/vol2/eee_shared/assemblies/human_1kg_v37/human_1kg_v37.fasta",
+		"gaps": "/net/eichler/vol5/home/bknelson/src/Hg19_NecessaryFiles/hg19_Gap.Table.USCS.Clean",
+		"satellite": "/net/eichler/vol5/home/bknelson/src/Hg19_NecessaryFiles/Hg19.Satellite"
+	}
+}
