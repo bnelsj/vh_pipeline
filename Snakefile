@@ -4,7 +4,7 @@ import os
 ### Assumes you have run Picard's mark duplicates and insert size calculations
 
 ### Variables that need to be set
-SAMPLE_DIR = "/net/eichler/vol24/projects/human_diversity/nobackups/C_team_bwa_mappings/renamed"
+SAMPLE_DIR = "/net/eichler/vol24/projects/human_diversity/nobackups/C_team_bwa_mappings/hgdp_1kg_overlap/"
 
 MANIFEST = "manifest.txt"
 
@@ -15,7 +15,7 @@ READ_LEN = '100'
 WHAM_PATH = "/net/eichler/vol5/home/bnelsj/src/wham"
 REFERENCE_FASTA = "/net/eichler/vol2/eee_shared/assemblies/human_1kg_v37/human_1kg_v37.fasta"
 
-ruleorder: get_isize_from_picard > get_isize_from_wham
+ruleorder: get_isize_from_wham > get_isize_from_picard
 
 ### Build list of samples and determine how they will be split into batches
 ### By default, this uses NGROUPS and not VH_GROUP_SIZE
@@ -32,7 +32,7 @@ ISIZE_PATH = "isizes"
 PICARD_ISIZE_SUFFIX = "picard_isize.txt"
 WHAM_ISIZE_SUFFIX = "wham_isize.txt"
 
-VH_GROUP_SIZE = 20
+VH_GROUP_SIZE = 22
 NGROUPS = 8
 FAMILY_BATCHES = False
 
@@ -151,11 +151,12 @@ rule get_all_discordant_reads:
         "samtools bamshuf -O {input[0]} $TMPDIR/{wildcards.sample} | python bam2vh_unpaired.py /dev/stdin {input[1]} {wildcards.sample} --discordant_reads {output[0]} --discordant_read_format bam --low_qual_reads {output[1]}"
 
 rule get_isize_from_wham:
-    input: expand("%s/{sample}.%s" % (ISIZE_PATH, PICARD_ISIZE_SUFFIX), sample = SAMPLES)
+    input: expand("%s/{sample}.%s" % (ISIZE_PATH, WHAM_ISIZE_SUFFIX), sample = SAMPLES)
     output: "%s" % MANIFEST
     params: sge_opts = "-N isize", edist="4"
     run:
         n_deviations = 3
+        outfile = open(output[0], "w")
         for infile in input:
             sample_name = os.path.basename(infile.replace("." + PICARD_ISIZE_SUFFIX, ''))
             sample_path = NODUPS_DIR + '/' + sample_name + '.' + MARKED_DUPS_SUFFIX
