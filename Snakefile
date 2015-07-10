@@ -83,13 +83,43 @@ rule all:
     input: expand('%s/{num}.SV' % VH_OUTDIR, num = SUFFIX_LIST)
     params: sge_opts=""
 
+rule get_read_depth:
+    input: 
+
+rule get_mei_svs: # Need example invocation from Fereydoun
+    input: "svs/{chr}.SV.DEL.merged"
+    output: "svs/{chr}.SV.DEL.merged.MEI"
+    params: sge_opts = ""
+    shell: "./spansKnownME"
+
+rule get_merged:
+    input: expand("svs/{chr}.SV.DEL.merged", chr = CHR_CONTIGS)
+    params: sge_opts = ""
+
+rule merge_samples: # Need to test mergeSamples with different number of samples
+    input: "svs/{chr}.SV.DEL", "samples.txt"
+    output: "svs/{chr}.SV.DEL.merged"
+    params: sge_opts = ""
+    run:
+        with open(input[0]) as f:
+            for i, l in enumerate(f):
+                pass
+            num_sv = str(i + 1)
+        shell("./mergeSamples {input} {num_sv} > {output}")
+
+rule make_sample_list_file:
+    input: MANIFEST
+    output: "samples.txt"
+    params: sge_opts = ""
+    shell: "cut -f 1 {input} > {output}"
+
 rule split_del_by_chr:
     input: "%s/ALL.SV.DEL" % "svs"
-    output: "svs/{chr}.DEL"
+    output: "svs/{chr}.SV.DEL"
     params: sge_opts = ""
     run:
         for chr in CHR_CONTIGS:
-            shell("grep -w {chr} {input[0]} > svs/{chr}.SV")
+            shell("grep -w {chr} {input[0]} > svs/{chr}.SV.DEL")
             
 rule filter_deletions:
     input: "%s/ALL.SV" % VH_OUTDIR
