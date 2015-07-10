@@ -4,7 +4,7 @@ import os
 ### Assumes you have run Picard's mark duplicates and insert size calculations
 
 ### Variables that need to be set
-SAMPLE_DIR = "/net/eichler/vol24/projects/human_diversity/nobackups/C_team_bwa_mappings/hgdp_1kg_overlap/"
+SAMPLE_DIR = "/net/eichler/vol23/projects/human_diversity/nobackups/bnelsj/vh_hgdp_OCN/vh_pipeline/all_discordant_reads"
 
 MANIFEST = "manifest.txt"
 
@@ -12,12 +12,13 @@ NODUPS_DIR = SAMPLE_DIR
 
 READ_LEN = "100"
 EDIST = 4
-N_DEV = 3
+N_DEV = 4
 
 WHAM_PATH = "/net/eichler/vol5/home/bnelsj/src/wham"
 REFERENCE_FASTA = "/net/eichler/vol2/eee_shared/assemblies/human_1kg_v37/human_1kg_v37.fasta"
 
 ruleorder: get_isize_from_wham > get_isize_from_picard
+#ruleorder: get_isize_from_picard > get_isize_from_wham
 
 ### Build list of samples and determine how they will be split into batches
 ### By default, this uses NGROUPS and not VH_GROUP_SIZE
@@ -27,11 +28,11 @@ SAMPLES = []
 SAMPLE_SUFFIX = "bam"
 
 for file in os.listdir(SAMPLE_DIR):
-    if file.endswith(SAMPLE_SUFFIX):
+    if file.endswith(SAMPLE_SUFFIX) and file.startswith("OCN") and not file.endswith(".lq.bam"):
         SAMPLES.append(file.replace("." + SAMPLE_SUFFIX, ""))
 
-ISIZE_PATH = "isizes"
-PICARD_ISIZE_SUFFIX = "picard_isize.txt"
+ISIZE_PATH = "/net/eichler/vol23/projects/human_diversity/nobackups/bnelsj/hgdp_remapped_isizes/vh_pipeline/isizes"
+PICARD_ISIZE_SUFFIX = "insert_size_metrics.txt"
 WHAM_ISIZE_SUFFIX = "wham_isize.txt"
 
 VH_GROUP_SIZE = 22
@@ -70,7 +71,7 @@ INCLUDE_CHRS = ':'.join(CONTIGS)
 
 ### Create directories, load modules
 
-dirs_to_check = ['log', MANIFEST_DIR, NODUPS_DIR, VH_OUTDIR, ALL_DISCO_DIR] + [ALL_DISCO_DIR + x for x in ["/unsorted", "/sorted"]]
+dirs_to_check = ['log', MANIFEST_DIR, NODUPS_DIR, VH_OUTDIR, ALL_DISCO_DIR]
 
 for dir in dirs_to_check:
     if not os.path.exists(dir):
