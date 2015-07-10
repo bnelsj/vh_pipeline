@@ -153,7 +153,7 @@ rule prep_vh:
     output: '{vhdir}/{num}.txt'.format(num=num, vhdir=VH_OUTDIR) for num in SUFFIX_LIST
     params: sge_opts='-N make_batches'
     shell:
-        'python ~bnelsj/pipelines/VariationHunter/prep_divet_manifest.py --group_size {VH_GROUP_SIZE} --n_groups {NGROUPS} --manifest {input[0]} --outdir {VH_OUTDIR} --vhdir {ALL_DISCO_DIR}'
+        'python prep_divet_manifest.py --group_size {VH_GROUP_SIZE} --n_groups {NGROUPS} --manifest {input[0]} --outdir {VH_OUTDIR} --vhdir {ALL_DISCO_DIR}'
 
 rule do_get_vh_files:
     input: expand('%s/{sample}.vh' % ALL_DISCO_DIR, sample = SAMPLES)
