@@ -12,7 +12,7 @@ NODUPS_DIR = SAMPLE_DIR
 
 READ_LEN = "100"
 EDIST = 4
-N_DEV = 3
+N_DEV = 4
 
 WHAM_PATH = "/net/eichler/vol5/home/bnelsj/src/wham"
 REFERENCE_FASTA = "/net/eichler/vol2/eee_shared/assemblies/human_1kg_v37/human_1kg_v37.fasta"
