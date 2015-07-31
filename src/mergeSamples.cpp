@@ -3,10 +3,11 @@
 #include <string.h>
 #include <math.h>
 
-const int maxNumSamples=160;
+const int maxNumSamples=1000;
 const int maxNumSV=10000000;
 int numSV;
-
+int totalNumSamples;
+int numberSampleInput;
 typedef struct SV{
 	char chroName[10];
 	int posOuterLeft;
@@ -23,7 +24,7 @@ typedef struct SV{
 	bool yetGood;
 }SV; 
 
-char samplesName[160][100]; 
+char samplesName[maxNumSamples][100]; 
 
 
 SV listSV[maxNumSV];
@@ -123,7 +124,7 @@ int mergeSV(int SV1, int SV2)
 {
 	if (listSV[SV1].totalSup>listSV[SV2].totalSup)
 	{
-		for (int count=0; count<160; count++)
+		for (int count=0; count<totalNumSamples; count++)
 		{
 			listSV[SV1].sampleEditDist[count]=(float)(listSV[SV1].sampleEditDist[count]*listSV[SV1].sampleSup[count] + listSV[SV2].sampleEditDist[count]*listSV[SV2].sampleSup[count])/(float)(listSV[SV1].sampleSup[count] + listSV[SV2].sampleSup[count]);
 			listSV[SV1].sampleSup[count]=listSV[SV1].sampleSup[count]+listSV[SV2].sampleSup[count];	
@@ -134,7 +135,7 @@ int mergeSV(int SV1, int SV2)
 			listSV[SV2].yetGood=false;
 	}else if (listSV[SV1].totalSup<listSV[SV2].totalSup)
 	{
-		for (int count=0; count<160; count++)
+		for (int count=0; count<totalNumSamples; count++)
 		{
 			listSV[SV2].sampleEditDist[count]=(float)(listSV[SV1].sampleEditDist[count]*listSV[SV1].sampleSup[count] + listSV[SV2].sampleEditDist[count]*listSV[SV2].sampleSup[count])/(float)(listSV[SV1].sampleSup[count] + listSV[SV2].sampleSup[count]);
 			listSV[SV2].sampleSup[count]=listSV[SV1].sampleSup[count]+listSV[SV2].sampleSup[count];	
@@ -144,7 +145,7 @@ int mergeSV(int SV1, int SV2)
 			listSV[SV2].totalSup=listSV[SV1].totalSup+listSV[SV2].totalSup; 		
 	}else if (listSV[SV1].averageEditDist<listSV[SV2].averageEditDist)
 	{
-		for (int count=0; count<160; count++)
+		for (int count=0; count<totalNumSamples; count++)
 		{
 			
 			listSV[SV1].sampleEditDist[count]=(float)(listSV[SV1].sampleEditDist[count]*listSV[SV1].sampleSup[count] + listSV[SV2].sampleEditDist[count]*listSV[SV2].sampleSup[count])/(float)(listSV[SV1].sampleSup[count] + listSV[SV2].sampleSup[count]);
@@ -155,7 +156,7 @@ int mergeSV(int SV1, int SV2)
 			listSV[SV1].totalSup=listSV[SV1].totalSup+listSV[SV2].totalSup; 		
 	}else
 	{	
-		for (int count=0; count<160; count++)
+		for (int count=0; count<totalNumSamples; count++)
 		{	
 		
 			listSV[SV2].sampleEditDist[count]=(float)(listSV[SV1].sampleEditDist[count]*listSV[SV1].sampleSup[count] + listSV[SV2].sampleEditDist[count]*listSV[SV2].sampleSup[count])/(float)(listSV[SV1].sampleSup[count] + listSV[SV2].sampleSup[count]);
@@ -168,7 +169,7 @@ int mergeSV(int SV1, int SV2)
 			listSV[SV2].totalSup=listSV[SV1].totalSup+listSV[SV2].totalSup; 		
 	}
 
-	for (int count=0; count<160; count++)
+	for (int count=0; count<totalNumSamples; count++)
 	{
 		
 			if (listSV[SV1].sampleSup[count]==0)
@@ -208,18 +209,29 @@ return id;
 int main(int argv, char *argc[])
 {
 	FILE *fp=fopen(argc[1],"r"); // total SVs
-	FILE *fp2=fopen(argc[2],"r"); // total samples
+	FILE *fp2=fopen(argc[2],"r"); // total samples file
 	numSV=atoi(argc[3]);
-	int totalSamples=20;
+	numberSampleInput=atoi(argc[4]); // number of samples in the input SV file
+//	int totalSamples=20;
 	float tempF;
-
+	totalNumSamples=0;
 	char sample[100];
 
+
+	while(fscanf(fp2,"%s\n", samplesName[totalNumSamples])!=EOF)
+	{
+		totalNumSamples++;
+	}
+
+
+
+/*
 	for (int count=0; count<160; count++)
 	{
 		fscanf(fp2,"%s\n", samplesName[count]);
+		
 	}
-
+*/
 //	printf("LLL\n");
 
 
@@ -230,11 +242,11 @@ int main(int argv, char *argc[])
 	{
 		fscanf(fp, "Chr:%s Start_Outer:%i Start_Inner:%i End_Inner:%i End_Outer:%i SVtype:D sup:%i Sum_Weight:0 AvgEditDits:%f", listSV[count].chroName, &(listSV[count].posOuterLeft), &(listSV[count].posInnerLeft), &(listSV[count].posInnerRight), &(listSV[count].posOuterRight), &(listSV[count].totalSup), &(listSV[count].averageEditDist));
 		//printf("%s %i\n", listSV[count].chroName, listSV[count].posOuterLeft);
-		for (int count2=0; count2<totalSamples; count2++)
+		for (int count2=0; count2<numberSampleInput; count2++)
 		{
 			fscanf(fp," Lib:%s ", sample);
 			//printf("%s\n", sample);
-			for (int count2=0; count2<160; count2++)
+			for (int count2=0; count2<totalNumSamples; count2++)
 			{
 				if (strcmp(sample, samplesName[count2])==0)
 				{
@@ -338,7 +350,7 @@ for (int count=0; count<numSV; count++)
 	if ((listSV[count].yetGood==true))
 	{
 		printf("%s\t%i\t%i\t%s_%i\t%i\t%f", listSV[count].chroName, (listSV[count].posOuterLeft+listSV[count].posInnerLeft)/2, (listSV[count].posInnerRight + listSV[count].posOuterRight)/2,  listSV[count].chroName, count, listSV[count].totalSup, listSV[count].averageEditDist);
-		for (int count2=0; count2<160; count2++)
+		for (int count2=0; count2<totalNumSamples; count2++)
 		{
 			printf(" %i %f", listSV[count].sampleSup[count2], listSV[count].sampleEditDist[count2]);
 		}

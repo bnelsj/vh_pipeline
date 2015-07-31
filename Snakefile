@@ -12,10 +12,11 @@ NODUPS_DIR = SAMPLE_DIR
 
 READ_LEN = "100"
 EDIST = 4
-N_DEV = 3
+N_DEV = 4
 
 WHAM_PATH = "/net/eichler/vol5/home/bnelsj/src/wham"
 REFERENCE_FASTA = "/net/eichler/vol2/eee_shared/assemblies/human_1kg_v37/human_1kg_v37.fasta"
+REFERENCE_GC_PROFILE = "/net/eichler/vol2/eee_shared/assemblies/hg19/gc_profile/ucsc.hg19.gc_profile.bed"
 
 ruleorder: get_isize_from_wham > get_isize_from_picard
 
@@ -61,6 +62,7 @@ EDISTFILE = 'edists.txt'
 DISCORDANT_READ_DIR = 'discordant_reads'
 ALL_DISCO_DIR = 'all_discordant_reads'
 VH_OUTDIR = 'vh_analysis'
+READ_DEPTH_DIR = "read_depth"
 CALL_DIR = 'calls'
 MARKED_DUPS_SUFFIX = 'bam'
 
@@ -79,36 +81,138 @@ for dir in dirs_to_check:
 ### Begin rule definitions
 
 rule all:
-    input: expand('%s/{num}.SV' % VH_OUTDIR, num = SUFFIX_LIST)
+    input: expand("svs/{chr}.SV.DEL.merged.MEI", chr = CHR_CONTIGS)
     params: sge_opts=""
 
-rule split_del_by_chr:
-    input: "%s/ALL.SV.DEL" % "svs"
-    output: "svs/{chr}.DEL"
+rule genotype_samples:
+    input: "samples.txt", "svs/ALL.SV.DEL.merged", window_count, "calls/Alu_L1_SV_Picked.txt", probands_siblings_samples, "depth_file_manifest.txt", "calls/VH_calls_gt500bp.txt"
+    output: "final_calls.bed"
+    params: sge_opts = "-l mfree=8G"
+    shell:
+        "./bin/genotype_MultipleSamples2 {input} > {output}"
+
+rule get_depth_file_manifest:
+    input: expand("%s/VH_calls_gt500bp.{sample}.bam.Depth" % "depth", sample = SAMPLES)
+    output: "depth_file_manifest.txt"
     params: sge_opts = ""
     run:
-        for chr in CHR_CONTIGS:
-            shell("grep -w {chr} {input[0]} > svs/{chr}.SV")
-            
-rule filter_deletions:
-    input: "%s/ALL.SV" % VH_OUTDIR
-    output: "%s/ALL.SV.DEL" % "svs"
+        with open(output[0], "w") as outfile:
+            for sn in SAMPLES:
+                infile = [file for file in input if sn in file][0]
+                outfile.write("%s\t%s\n" % (infile, sn))
+
+
+rule get_gc_corrected_read_depth_per_call:
+    input: REFERENCE_GC_PROFILE, "%s/{sample}.bam.Depth" % READ_DEPTH_DIR, "calls/VH_calls_gt500bp.tab"
+    output: "%s/VH_calls_gt500bp.{sample}.bam.Depth" % "depth"
+    params: sge_opts = ""
+    shell:
+        "./bin/calculateReadDepthFromBAM {input} > {output}"
+
+rule gc_correct:
+    input: REFERENCE_GC_PROFILE, "%s/{sample}.bam.Depth" % READ_DEPTH_DIR
+    output: "%s/{sample}.500bp.GT.bam.Depth" % CALL_DIR
+    params: sge_opts = "-l mfree=8G"
+    shell:
+        "./bin/calculateReadDepthFromBAM {input[0]} {input[1]}"
+
+rule get_depth:
+    input: expand("%s/{sample}.bam.Depth" % READ_DEPTH_DIR, sample = SAMPLES)
+    params: sge_opts = ""
+
+rule get_read_depth:
+    input: '%s/{sample}.%s' % (NODUPS_DIR, MARKED_DUPS_SUFFIX)
+    output: "%s/{sample}.bam.Depth" % READ_DEPTH_DIR
+    params: sge_opts = "", tmpfile = "$TMPDIR/{sample}.bam.Depth"
+    shell:
+        "samtools depth {input} > {params.tmpfile}; "
+        "rsync --bwlimit 10000 {params.tmpfile} {output}"
+
+rule get_gt500pb_call_names:
+    input: "calls/VH_calls_gt500bp.tab"
+    output: "calls/VH_calls_gt500bp.txt"
+    params: sge_opts = ""
+    shell: "cut -f 4 {input} > {output}"
+
+rule get_calls_over_500bp:
+    input: "svs/ALL.SV.DEL.merged"
+    output: "calls/VH_calls_gt500bp.tab"
+    params: sge_opts = ""
+    shell:
+        "cat {input} | awk '{{if ($3-$2>500) print;}}' > {output}"
+
+rule combine_all_calls:
+    input: expand("svs/{chr}.SV.DEL.merged", chr = CHR_CONTIGS)
+    output: "svs/ALL.SV.DEL.merged"
+    params: sge_opts = ""
+    shell:
+        "cat {input} > {output}"
+
+rule get_picked_mei:
+    input: expand("svs/{chr}.SV.DEL.merged.MEI", chr = CHR_CONTIGS)
+    output: "calls/Alu_L1_SV_Picked.txt"
+    params: sge_opts = ""
+    shell:
+        "cat {input} | cut -f 4 > {output}"
+
+rule get_mei_svs: # Currently set for max of 160 samples
+    input: "svs/{chr}.SV.DEL.merged"
+    output: "svs/{chr}.SV.DEL.merged.MEI"
+    params: sge_opts = "-l mfree=8G", mei = "/net/eichler/vol1/home/fhormozd/1000Genome_SV/Alu_L1_Del/Stewart_Alu_L1_Del.hg19"
+    shell: "bin/spansKnownME {params.mei} {input} > {output}"
+
+rule get_merged:
+    input: expand("svs/{chr}.SV.DEL.merged", chr = CHR_CONTIGS)
+    params: sge_opts = "-l mfree=8G"
+
+rule merge_samples: # Need to test mergeSamples with different number of samples
+    input: "svs/ALL.SV.{chr}.DEL", "samples.txt"
+    output: "svs/{chr}.SV.DEL.merged"
+    params: sge_opts = "-l mfree=8G", nsamples = str(len(SAMPLES))
+    run:
+        with open(input[0]) as f:
+            for i, l in enumerate(f):
+                pass
+            num_sv = str(i + 1)
+        shell("bin/mergeSamples {input} {num_sv} {params.nsamples} > {output}")
+
+rule make_sample_list_file:
+    input: MANIFEST
+    output: "samples.txt"
+    params: sge_opts = ""
+    shell: "cut -f 1 {input} > {output}"
+
+rule filter_deletions_by_chr:
+    input: "%s/ALL.SV.{chr}" % VH_OUTDIR
+    output: "%s/ALL.SV.{chr}.DEL" % "svs"
     params: sge_opts = ""
     shell:
         "grep SVtype:D {input[0]} > {output}"
 
 rule combine_sv:
-    input: expand("%s/{num}.SV" % VH_OUTDIR, num = SUFFIX_LIST)
-    output: "%s/ALL.SV" % VH_OUTDIR
-    params: sge_opts = ""
-    shell: "cat {input} > {output}"
+    input: expand("%s/{num}.SV.{chr}" % VH_OUTDIR, num = SUFFIX_LIST, chr = CHR_CONTIGS)
+    output: "%s/ALL.SV.{chr}" % VH_OUTDIR
+    params: sge_opts = "", chr = "{chr}"
+    run:
+        files = []
+        for file in input:
+            if file.endswith(params.chr):
+                files.append(file)
+        shell("cat {files} > {output}")
 
 rule run_selection:
-    input: expand('%s/{{num}}.{ext}' % VH_OUTDIR, ext = ['txt', 'ReadName', 'cluster'])
-    output: '%s/{num}.SV' % VH_OUTDIR
+    input: expand('%s/{{num}}.{ext}' % VH_OUTDIR, ext = ['txt', 'ReadName']), '%s/{num}.cluster.{chr}' % VH_OUTDIR
+    output: '%s/{num}.SV.{chr}' % VH_OUTDIR
     params: sge_opts='-l mfree=80G -N vhselection', gn = '%s/{num}' % VH_OUTDIR
     shell:
-        'module load VariationHunter/0.4; /net/eichler/vol5/home/bknelson/src/Hg19_NecessaryFiles/Selection_VH_New2 -l {params.gn}.txt -r {params.gn}.ReadName -c {params.gn}.cluster -t 1000000000 -o {params.gn}.SV'
+        'module load VariationHunter/0.4; /net/eichler/vol5/home/bknelson/src/Hg19_NecessaryFiles/Selection_VH_New2 -l {params.gn}.txt -r {params.gn}.ReadName -c {params.gn}.cluster.{wildcards.chr} -t 1000000000 -o {output}'
+
+rule split_clust_by_chr:    
+    input: "%s/{num}.cluster" % VH_OUTDIR
+    output: "%s/{num}.cluster.{chr}" % VH_OUTDIR
+    params: sge_opts="-l mfree=8G", chr = "{chr}"
+    shell:
+        "grep -w {params.chr} {input} > {output}"
 
 rule run_vh:
     input: '%s/{num}.txt' % VH_OUTDIR
