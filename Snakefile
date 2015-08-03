@@ -56,7 +56,6 @@ SUFFIX_LIST = [str(x).zfill(len(str(NGROUPS))) for x in range(NGROUPS)]
 
 ### Snakemake variables that probably don't need to be changed
 
-MANIFEST_DIR = 'manifest'
 ISIZEFILE = 'isizes.txt'
 EDISTFILE = 'edists.txt'
 DISCORDANT_READ_DIR = 'discordant_reads'
@@ -72,7 +71,7 @@ INCLUDE_CHRS = ':'.join(CONTIGS)
 
 ### Create directories, load modules
 
-dirs_to_check = ['log', MANIFEST_DIR, NODUPS_DIR, VH_OUTDIR, ALL_DISCO_DIR] + [ALL_DISCO_DIR + x for x in ["/unsorted", "/sorted"]]
+dirs_to_check = ['log', NODUPS_DIR, VH_OUTDIR, ALL_DISCO_DIR, "svs", "calls", "read_depth", "depth", "isizes"]
 
 for dir in dirs_to_check:
     if not os.path.exists(dir):
@@ -81,15 +80,21 @@ for dir in dirs_to_check:
 ### Begin rule definitions
 
 rule all:
-    input: expand("svs/{chr}.SV.DEL.merged.MEI", chr = CHR_CONTIGS)
+    input: "final_calls.bed" #expand("svs/{chr}.SV.DEL.merged.MEI", chr = CHR_CONTIGS)
     params: sge_opts=""
 
-rule genotype_samples:
-    input: "samples.txt", "svs/ALL.SV.DEL.merged", window_count, "calls/Alu_L1_SV_Picked.txt", probands_siblings_samples, "depth_file_manifest.txt", "calls/VH_calls_gt500bp.txt"
+rule genotype_samples: # max SV list size set to 5 million for svs/ALL.SV.DEL.merged.
+    input: "samples.txt", "svs/ALL.SV.DEL.merged",  "calls/Alu_L1_SV_Picked.txt", "proband_list.txt", "depth_file_manifest.txt", "calls/VH_calls_gt500bp.txt"
     output: "final_calls.bed"
-    params: sge_opts = "-l mfree=8G"
+    params: sge_opts = "-l mfree=64G"
     shell:
         "./bin/genotype_MultipleSamples2 {input} > {output}"
+
+rule get_proband_samples:
+    input: "samples.txt"
+    output: "proband_list.txt"
+    params: sge_opts = ""
+    shell: "touch {output}"
 
 rule get_depth_file_manifest:
     input: expand("%s/VH_calls_gt500bp.{sample}.bam.Depth" % "depth", sample = SAMPLES)
@@ -98,23 +103,16 @@ rule get_depth_file_manifest:
     run:
         with open(output[0], "w") as outfile:
             for sn in SAMPLES:
-                infile = [file for file in input if sn in file][0]
+                infile = [os.path.abspath(file) for file in input if sn in file][0]
                 outfile.write("%s\t%s\n" % (infile, sn))
 
 
 rule get_gc_corrected_read_depth_per_call:
-    input: REFERENCE_GC_PROFILE, "%s/{sample}.bam.Depth" % READ_DEPTH_DIR, "calls/VH_calls_gt500bp.tab"
+    input: REFERENCE_GC_PROFILE, "%s/{sample}.bam.Depth" % READ_DEPTH_DIR, "calls/VH_calls_gt500bp.clean"
     output: "%s/VH_calls_gt500bp.{sample}.bam.Depth" % "depth"
-    params: sge_opts = ""
+    params: sge_opts = "-l mfree=64G"
     shell:
         "./bin/calculateReadDepthFromBAM {input} > {output}"
-
-rule gc_correct:
-    input: REFERENCE_GC_PROFILE, "%s/{sample}.bam.Depth" % READ_DEPTH_DIR
-    output: "%s/{sample}.500bp.GT.bam.Depth" % CALL_DIR
-    params: sge_opts = "-l mfree=8G"
-    shell:
-        "./bin/calculateReadDepthFromBAM {input[0]} {input[1]}"
 
 rule get_depth:
     input: expand("%s/{sample}.bam.Depth" % READ_DEPTH_DIR, sample = SAMPLES)
@@ -128,7 +126,13 @@ rule get_read_depth:
         "samtools depth {input} > {params.tmpfile}; "
         "rsync --bwlimit 10000 {params.tmpfile} {output}"
 
-rule get_gt500pb_call_names:
+rule get_clean_gt500bp_file:
+    input: "calls/VH_calls_gt500bp.tab"
+    output: "calls/VH_calls_gt500bp.clean"
+    params: sge_opts = ""
+    shell: "cut -f 1-4 {input} > {output}"
+
+rule get_gt500bp_call_names:
     input: "calls/VH_calls_gt500bp.tab"
     output: "calls/VH_calls_gt500bp.txt"
     params: sge_opts = ""

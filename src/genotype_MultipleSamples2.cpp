@@ -22,7 +22,7 @@ typedef struct SV{
 	int minLen;
 	int maxLen;
 	bool yetGood;
-	int windowsCovered;
+	//int windowsCovered;
 	bool goodCall; 
 	bool mrsFastReadDepthGoodCall;
 	bool bwaReadDepthGoodCall;
@@ -34,7 +34,7 @@ typedef struct SV{
 }SV;
 
 
-SV listSV[2000000];
+SV listSV[5000000];
 int countSV;
 
 char samplesName[maxNumSamples][100];
@@ -225,13 +225,13 @@ int main(int argv, char *argc[])
 
 	FILE *fp1=fopen(argc[1],"r");// Samples Name
 	FILE *fp2=fopen(argc[2],"r");// the SV paired-end info 
-	FILE *fp3=fopen(argc[3],"r");// the number of windows
+//	FILE *fp3=fopen(argc[3],"r");// the number of windows
 //	FILE *fp4=fopen(argc[4],"r");// wssd CNV (mrsFast/Peter version)	
-	FILE *fp5=fopen(argc[4],"r");// Known ALu, L1 calls
-	FILE *fp6=fopen(argc[5],"r");// probands name
+	FILE *fp5=fopen(argc[3],"r");// Known ALu, L1 calls
+	FILE *fp6=fopen(argc[4],"r");// probands name
 
-	FILE *fp7=fopen(argc[6],"r");// read-depth BAM file using BWA mapping
-	FILE *fp8=fopen(argc[7],"r");// the name of the SVs in the BWA readdepth7
+	FILE *fp7=fopen(argc[5],"r");// read-depth BAM file using BWA mapping
+	FILE *fp8=fopen(argc[6],"r");// the name of the SVs in the BWA readdepth7
 	char tempStr[100];
 
 
@@ -289,12 +289,13 @@ int main(int argv, char *argc[])
 
 
 	int SVIdFound=0;
+	/*
 	while(fscanf(fp3,"%s\t%i\t%i\t%s\t%i\n", chroName, &pos1, &pos2, SVName, &winCount)!=EOF)
 	{
 		SVIdFound=binarySearch(0, countSV-1, SVName);
 		//if (strcmp(SVName, listSV[count].SVName)==0)
 		listSV[SVIdFound].windowsCovered=winCount;
-	}
+	}*/
 
 	//printf("L115\n");
 
@@ -453,7 +454,7 @@ int main(int argv, char *argc[])
 
 	for (int count=0; count<countSV; count++)
 	{
-		if (listSV[count].posInnerRight-listSV[count].posInnerLeft>750 && listSV[count].windowsCovered==0 && listSV[count].maxSup>5 && listSV[count].totalSup>10 && listSV[count].goodCall==false)
+		if (listSV[count].posInnerRight-listSV[count].posInnerLeft>750 && listSV[count].maxSup>5 && listSV[count].totalSup>10 && listSV[count].goodCall==false)
 		//if (listSV[count].posInnerRight-listSV[count].posInnerLeft>750 && listSV[count].maxSup>5 && listSV[count].totalSup>10 && listSV[count].goodCall==false)
 		{
 		countTemp=0;
