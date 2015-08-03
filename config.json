@@ -13,7 +13,7 @@
 
 	"reference": "hg19",
 	"edist": 4,
-	"n_dev": 3,
+	"n_dev": 4,
 	"read_length": 100,
 	"ref_files": {
 		"ref_fasta": "/net/eichler/vol2/eee_shared/assemblies/human_1kg_v37/human_1kg_v37.fasta",

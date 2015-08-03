@@ -4,7 +4,7 @@ import os
 ### Assumes you have run Picard's mark duplicates and insert size calculations
 
 ### Variables that need to be set
-SAMPLE_DIR = "/net/eichler/vol24/projects/human_diversity/nobackups/C_team_bwa_mappings/hgdp_1kg_overlap/"
+SAMPLE_DIR = "/net/eichler/vol23/projects/human_diversity/nobackups/bnelsj/vh_hgdp_OCN/vh_pipeline/all_discordant_reads"
 
 MANIFEST = "manifest.txt"
 
@@ -19,6 +19,7 @@ REFERENCE_FASTA = "/net/eichler/vol2/eee_shared/assemblies/human_1kg_v37/human_1
 REFERENCE_GC_PROFILE = "/net/eichler/vol2/eee_shared/assemblies/hg19/gc_profile/ucsc.hg19.gc_profile.bed"
 
 ruleorder: get_isize_from_wham > get_isize_from_picard
+#ruleorder: get_isize_from_picard > get_isize_from_wham
 
 ### Build list of samples and determine how they will be split into batches
 ### By default, this uses NGROUPS and not VH_GROUP_SIZE
@@ -28,11 +29,11 @@ SAMPLES = []
 SAMPLE_SUFFIX = "bam"
 
 for file in os.listdir(SAMPLE_DIR):
-    if file.endswith(SAMPLE_SUFFIX):
+    if file.endswith(SAMPLE_SUFFIX) and file.startswith("OCN") and not file.endswith(".lq.bam"):
         SAMPLES.append(file.replace("." + SAMPLE_SUFFIX, ""))
 
-ISIZE_PATH = "isizes"
-PICARD_ISIZE_SUFFIX = "picard_isize.txt"
+ISIZE_PATH = "/net/eichler/vol23/projects/human_diversity/nobackups/bnelsj/hgdp_remapped_isizes/vh_pipeline/isizes"
+PICARD_ISIZE_SUFFIX = "insert_size_metrics.txt"
 WHAM_ISIZE_SUFFIX = "wham_isize.txt"
 
 VH_GROUP_SIZE = 22
@@ -230,7 +231,7 @@ rule prep_vh:
     output: '{vhdir}/{num}.txt'.format(num=num, vhdir=VH_OUTDIR) for num in SUFFIX_LIST
     params: sge_opts='-N make_batches'
     shell:
-        'python ~bnelsj/pipelines/VariationHunter/prep_divet_manifest.py --group_size {VH_GROUP_SIZE} --n_groups {NGROUPS} --manifest {input[0]} --outdir {VH_OUTDIR} --vhdir {ALL_DISCO_DIR}'
+        'python prep_divet_manifest.py --group_size {VH_GROUP_SIZE} --n_groups {NGROUPS} --manifest {input[0]} --outdir {VH_OUTDIR} --vhdir {ALL_DISCO_DIR}'
 
 rule do_get_vh_files:
     input: expand('%s/{sample}.vh' % ALL_DISCO_DIR, sample = SAMPLES)
