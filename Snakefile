@@ -37,10 +37,12 @@ PICARD_ISIZE_SUFFIX = "insert_size_metrics.txt"
 WHAM_ISIZE_SUFFIX = "wham_isize.txt"
 
 VH_GROUP_SIZE = 22
-NGROUPS = 8
+NGROUPS = 1
 FAMILY_BATCHES = False
 
 ### Manifest file column names (only used if FAMILY_BATCHES = True)
+# FAMILY_MANIFEST must be a tab-delimited file with columns for sample and family
+FAMILY_MANIFEST = "/path/to/family/manifest"
 FAMILY_COL_NAME = 'family'
 SAMPLE_COL_NAME = 'sample'
 POSITION_COL_NAME = 'position'
@@ -73,6 +75,12 @@ INCLUDE_CHRS = ':'.join(CONTIGS)
 ### Create directories, load modules
 
 dirs_to_check = ['log', NODUPS_DIR, VH_OUTDIR, ALL_DISCO_DIR, "svs", "calls", "read_depth", "depth", "isizes"]
+
+def _get_family_string(wildcards):
+	if FAMILY_BATCHES:
+		return "--family %s --family_col_name %s --sample_col_name %s" % (FAMILY_MANIFEST, FAMILY_COL_NAME, SAMPLE_COL_NAME)
+	else:
+		return ""
 
 for dir in dirs_to_check:
     if not os.path.exists(dir):
@@ -229,9 +237,9 @@ rule run_vh:
 rule prep_vh:
     input: 'manifest.txt', expand('%s/{sample}.vh' % ALL_DISCO_DIR, sample = SAMPLES)
     output: '{vhdir}/{num}.txt'.format(num=num, vhdir=VH_OUTDIR) for num in SUFFIX_LIST
-    params: sge_opts='-N make_batches'
+    params: sge_opts='-N make_batches', family_string = _get_family_string
     shell:
-        'python prep_divet_manifest.py --group_size {VH_GROUP_SIZE} --n_groups {NGROUPS} --manifest {input[0]} --outdir {VH_OUTDIR} --vhdir {ALL_DISCO_DIR}'
+        'python prep_divet_manifest.py --group_size {VH_GROUP_SIZE} --n_groups {NGROUPS} --manifest {input[0]} --outdir {VH_OUTDIR} --vhdir {ALL_DISCO_DIR} {params.family_string}'
 
 rule do_get_vh_files:
     input: expand('%s/{sample}.vh' % ALL_DISCO_DIR, sample = SAMPLES)
