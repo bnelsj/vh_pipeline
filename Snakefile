@@ -29,7 +29,7 @@ SAMPLES = []
 SAMPLE_SUFFIX = "bam"
 
 for file in os.listdir(SAMPLE_DIR):
-    if file.endswith(SAMPLE_SUFFIX) and file.startswith("OCN") and not file.endswith(".lq.bam"):
+    if file.endswith(SAMPLE_SUFFIX) and not file.endswith(".lq.bam"):
         SAMPLES.append(file.replace("." + SAMPLE_SUFFIX, ""))
 
 ISIZE_PATH = "/net/eichler/vol23/projects/human_diversity/nobackups/bnelsj/hgdp_remapped_isizes/vh_pipeline/isizes"
