@@ -169,6 +169,14 @@ def is_empty(file):
         os.remove(file)
     return empty
 
+def get_next_paired_read(samfile):
+    read_a = samfile.next()
+    read_b = samfile.next()
+    while not read_a.query_name == read_b.query_name:
+        read_a = read_b
+        read_b = samfile.next()
+    return read_a, read_b
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('filename', help="The sam filename")
@@ -215,8 +223,9 @@ if __name__ == '__main__':
 
     while True:
         try:
-            read_a = samfile.next()
-            read_b = samfile.next()
+            read_a = get_next_paired_read(samfile)
+            read_b = get_next_paired_read(samfile)
+            read_a, read_b = get_next_read_pair(samfile)
         except StopIteration:
             break
 
