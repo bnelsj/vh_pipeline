@@ -9,33 +9,6 @@ import gc
 
 MINIMUM_MAPPING_QUALITY = 20
 
-class FailVH(Exception):
-    def __init__(self,msg,read1,read2):
-        self.msg = msg
-        self.read1 = read1
-        self.read2 = read2
-
-class LowQuality(FailVH):
-    pass
-
-class MismatchName(FailVH):
-    pass
-
-class MismatchContig(FailVH):
-    pass
-
-class Overlap(FailVH):
-    pass
-
-class MismatchSize(FailVH):
-    pass
-
-class NoQuality(FailVH):
-    pass
-
-class BadEvent(FailVH):
-    pass
-
 def check_read_pair(read1, read2):
     if read1.qname != read2.qname:
         return "NAME_MISMATCH"
@@ -187,14 +160,14 @@ class VH:
         contig_name = samfile.getrname(self.tid)
         return contig_name if contig_name.startswith('chr') else 'chr' + contig_name
 
-def is_good_pair(read_a, read_b):
-    return not read_a.is_unmapped and not read_b.is_unmapped and not read_a.is_duplicate and not read_b.is_duplicate and not read_a.is_qcfail and not read_b.is_qcfail
-
-def is_good_mei_pair(read_a, read_b):
-    return (not read_a.is_unmapped or not read_b.is_unmapped) and not read_a.is_duplicate and not read_b.is_duplicate and not read_a.is_qcfail and not read_b.is_qcfail
-
 def want_contig(contig):
     return True
+
+def is_empty(file):
+    empty = os.path.getsize(discordant_file) < 100 and pysam.view(discordant_file) == []
+    if empty:
+        os.remove(file)
+    return empty
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -265,3 +238,14 @@ if __name__ == '__main__':
         else:
             if args.debug:
                 sys.stderr.write("%s: %s, %s\n" % (type, read_a.qname, read_b.qname))
+
+    samfile.close()
+    discordant_file.close()
+
+    lq_empty = False
+    if args.low_qual_reads is not None:
+        lq_file.close()
+        lq_empty = is_empty(lq_file)
+
+    if is_empty(discordant_file) or lq_empty:
+        sys.exit(1)
