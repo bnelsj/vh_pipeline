@@ -164,8 +164,12 @@ def want_contig(contig):
     return True
 
 def is_empty(file):
-    empty = os.path.getsize(discordant_file) < 100 and pysam.view(discordant_file) == []
-    if empty:
+    test = pysam.AlignmentFile(file, check_sq=False)
+    try:
+        read = test.next()
+        empty = False
+    except StopIteration:
+        empty = True
         os.remove(file)
     return empty
 
