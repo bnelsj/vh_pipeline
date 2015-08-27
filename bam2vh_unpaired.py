@@ -171,6 +171,7 @@ def is_empty(file):
     except StopIteration:
         empty = True
         os.remove(file)
+    test.close()
     return empty
 
 def get_next_paired_read(samfile):
@@ -258,7 +259,7 @@ if __name__ == '__main__':
     lq_empty = False
     if args.low_qual_reads is not None:
         lq_file.close()
-        lq_empty = is_empty(lq_file)
+        lq_empty = is_empty(args.low_qual_reads)
 
     if is_empty(discordant_file) or lq_empty:
         sys.exit(1)
