@@ -228,9 +228,7 @@ if __name__ == '__main__':
 
     while True:
         try:
-            read_a = get_next_paired_read(samfile)
-            read_b = get_next_paired_read(samfile)
-            read_a, read_b = get_next_read_pair(samfile)
+            read_a, read_b = get_next_paired_read(samfile)
         except StopIteration:
             break
 
