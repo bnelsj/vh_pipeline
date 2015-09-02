@@ -259,5 +259,5 @@ if __name__ == '__main__':
         lq_file.close()
         lq_empty = is_empty(args.low_qual_reads)
 
-    if is_empty(args.discordant_reads) or lq_empty:
+    if args.discordant_read_format != "vh" and is_empty(args.discordant_reads) or lq_empty:
         sys.exit(1)
