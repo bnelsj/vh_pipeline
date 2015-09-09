@@ -6,48 +6,65 @@ import os
 ### Variables that need to be set
 
 shell.prefix("source config.sh; ")
-SAMPLE_DIR = "/net/eichler/vol23/projects/human_diversity/nobackups/bnelsj/vh_hgdp_OCN/vh_pipeline/all_discordant_reads"
 
-MANIFEST = "manifest.txt"
+SAMPLE_DIR = config["sample_dir"]
 
-NODUPS_DIR = SAMPLE_DIR
+MANIFEST = config["manifest"]
 
-READ_LEN = "100"
-EDIST = 4
-N_DEV = 4
+NODUPS_DIR = config["nodups_dir"]
 
-WHAM_PATH = "/net/eichler/vol5/home/bnelsj/src/wham"
-REFERENCE_FASTA = "/net/eichler/vol2/eee_shared/assemblies/human_1kg_v37/human_1kg_v37.fasta"
-REFERENCE_GC_PROFILE = "/net/eichler/vol2/eee_shared/assemblies/hg19/gc_profile/ucsc.hg19.gc_profile.bed"
+if NODUPS_DIR == "":
+    NODUPS_DIR = SAMPLE_DIR
 
-ruleorder: get_isize_from_wham > get_isize_from_picard
-#ruleorder: get_isize_from_picard > get_isize_from_wham
+SAMPLE_SUFFIX = config["sample_suffix"]
+
+READ_LEN = config["read_length"]
+EDIST = config["edist"]
+N_DEV = config["n_dev"]
+
+VH_CLUSTER = config["vh_cluster"]
+VH_SELECTION = config["vh_selection"]
+WHAM_PATH = config["wham_path"]
+
+REFERENCE = config["reference"]
+REFERENCE_FASTA = config["ref_files"][REFERENCE]["ref_fasta"]
+REFERENCE_GC_PROFILE = config["ref_files"][REFERENCE]["gc_profile"]
+REFERENCE_GAPS = config["ref_files"][REFERENCE]["gaps"]
+REFERENCE_SATELLITE = config["ref_files"][REFERENCE]["satellite"]
+MEI = config["ref_files"][REFERENCE]["mei"]
+
+VH_INIT_INFO = config["vh_init_info"]
+VH_CONTIG_CHUNKS = config["vh_contig_chunks"]
+
+if config["isize_method"] == "wham":
+    ruleorder: get_isize_from_wham > get_isize_from_picard
+else:
+    ruleorder: get_isize_from_picard > get_isize_from_wham
 
 ### Build list of samples and determine how they will be split into batches
 ### By default, this uses NGROUPS and not VH_GROUP_SIZE
 ### assigns samples to groups based on family as listed in MANIFEST
 
 SAMPLES = []
-SAMPLE_SUFFIX = "bam"
 
 for file in os.listdir(SAMPLE_DIR):
-    if file.endswith(SAMPLE_SUFFIX) and not file.endswith(".lq.bam"):
+    if file.endswith(SAMPLE_SUFFIX):
         SAMPLES.append(file.replace("." + SAMPLE_SUFFIX, ""))
 
-ISIZE_PATH = "/net/eichler/vol23/projects/human_diversity/nobackups/bnelsj/hgdp_remapped_isizes/vh_pipeline/isizes"
-PICARD_ISIZE_SUFFIX = "insert_size_metrics.txt"
-WHAM_ISIZE_SUFFIX = "wham_isize.txt"
+ISIZE_PATH = config["isize_path"]
+PICARD_ISIZE_SUFFIX = config["picard_isize_suffix"]
+WHAM_ISIZE_SUFFIX = config["wham_isize_suffix"]
 
-VH_GROUP_SIZE = 22
-NGROUPS = 1
-FAMILY_BATCHES = False
+VH_GROUP_SIZE = config["group_size"]
+NGROUPS = config["ngroups"]
+FAMILY_BATCHES = True if config["family_batches"] == 1 else False
 
 ### Manifest file column names (only used if FAMILY_BATCHES = True)
 # FAMILY_MANIFEST must be a tab-delimited file with columns for sample and family
-FAMILY_MANIFEST = "/path/to/family/manifest"
-FAMILY_COL_NAME = 'family'
-SAMPLE_COL_NAME = 'sample'
-POSITION_COL_NAME = 'position'
+FAMILY_MANIFEST = config["family_manifest"]
+FAMILY_COL_NAME = config["family_col_name"]
+SAMPLE_COL_NAME = config["sample_col_name"]
+POSITION_COL_NAME = config["position_col_name"]
 ###
 
 if not FAMILY_BATCHES:
@@ -61,9 +78,6 @@ SUFFIX_LIST = [str(x).zfill(len(str(NGROUPS))) for x in range(NGROUPS)]
 
 ### Snakemake variables that probably don't need to be changed
 
-ISIZEFILE = 'isizes.txt'
-EDISTFILE = 'edists.txt'
-DISCORDANT_READ_DIR = 'discordant_reads'
 ALL_DISCO_DIR = 'all_discordant_reads'
 VH_OUTDIR = 'vh_analysis'
 READ_DEPTH_DIR = "read_depth"
@@ -76,7 +90,7 @@ INCLUDE_CHRS = ':'.join(CONTIGS)
 
 ### Create directories, load modules
 
-dirs_to_check = ['log', NODUPS_DIR, VH_OUTDIR, ALL_DISCO_DIR, "svs", "calls", "read_depth", "depth", "isizes"]
+dirs_to_check = ['log']
 
 def _get_family_string(wildcards):
 	if FAMILY_BATCHES:
@@ -173,8 +187,8 @@ rule get_picked_mei:
 rule get_mei_svs: # Currently set for max of 160 samples
     input: "svs/{chr}.SV.DEL.merged"
     output: "svs/{chr}.SV.DEL.merged.MEI"
-    params: sge_opts = "-l mfree=8G", mei = "/net/eichler/vol1/home/fhormozd/1000Genome_SV/Alu_L1_Del/Stewart_Alu_L1_Del.hg19"
-    shell: "bin/spansKnownME {params.mei} {input} > {output}"
+    params: sge_opts = "-l mfree=8G"
+    shell: "bin/spansKnownME {MEI} {input} > {output}"
 
 rule get_merged:
     input: expand("svs/{chr}.SV.DEL.merged", chr = CHR_CONTIGS)
@@ -220,7 +234,7 @@ rule run_selection:
     output: '%s/{num}.SV.{chr}' % VH_OUTDIR
     params: sge_opts='-l mfree=80G -N vhselection', gn = '%s/{num}' % VH_OUTDIR
     shell:
-        '/net/eichler/vol5/home/bknelson/src/Hg19_NecessaryFiles/Selection_VH_New2 -l {params.gn}.txt -r {params.gn}.ReadName -c {params.gn}.cluster.{wildcards.chr} -t 1000000000 -o {output}'
+        '{VH_SELECTION} -l {params.gn}.txt -r {params.gn}.ReadName -c {params.gn}.cluster.{wildcards.chr} -t 1000000000 -o {output}'
 
 rule split_clust_by_chr:    
     input: "%s/{num}.cluster" % VH_OUTDIR
@@ -232,9 +246,9 @@ rule split_clust_by_chr:
 rule run_vh:
     input: '%s/{num}.txt' % VH_OUTDIR
     output: '%s/{num}.ReadName' % VH_OUTDIR, '%s/{num}.cluster' % VH_OUTDIR
-    params: sge_opts="-l mfree=80G -N run_vh", gn = '%s/{num}' % VH_OUTDIR
+    params: sge_opts="-l mfree=80G -N run_vh"
     shell:
-        'VH -i /net/eichler/vol5/home/bknelson/src/Hg19_NecessaryFiles/initInfo -c /net/eichler/vol5/home/bknelson/src/Hg19_NecessaryFiles/AllChro -g /net/eichler/vol5/home/bknelson/src/Hg19_NecessaryFiles/hg19_Gap.Table.USCS.Clean -r /net/eichler/vol5/home/bknelson/src/Hg19_NecessaryFiles/Hg19.Satellite -l {params.gn}.txt -t {params.gn}.ReadName -o {params.gn}.cluster'
+        '{VH_CLUSTER} -i {VH_INIT_INFO} -c {VH_CONTIG_CHUNKS} -g {REFERENCE_GAPS} -r {REFERENCE_SATELLITE} -l {input} -t {output[0]} -o {output[1]}'
 
 rule prep_vh:
     input: 'manifest.txt', expand('%s/{sample}.vh' % ALL_DISCO_DIR, sample = SAMPLES)

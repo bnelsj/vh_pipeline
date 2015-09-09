@@ -1,7 +1,10 @@
 {
 	"sample_dir": "/net/eichler/vol24/projects/human_diversity/nobackups/C_team_bwa_mappings/hgdp_1kg_overlap/",
-	"nodups_dir": False,
+	"nodups_dir": "",
 	"manifest": "manifest.txt",
+	"isize_path": "isizes",
+	"sample_suffix": "bam",
+
 	"wham_path": "/net/eichler/vol5/home/bnelsj/src/wham",
 	"vh_module": "VariationHunter/0.4",
 	"vh_cluster": "VH",
@@ -9,15 +12,30 @@
 	"vh_init_info": "/net/eichler/vol5/home/bknelson/src/Hg19_NecessaryFiles/initInfo",
 	"vh_contig_chunks": "/net/eichler/vol5/home/bknelson/src/Hg19_NecessaryFiles/AllChro",
 	 
-	"isize_mode": "wham",
+	"isize_method": "wham",
+	"wham_isize_suffix": "wham_isize.txt",
+	"picard_isize_suffix": "insert_size_metrics.txt",
+
+	"group_size": 22,
+	"ngroups": 1,
+
+	"family_batches": 0,
+	"family_manifest": "family_manifest.txt",
+	"family_col_name": "family",
+	"sample_col_name": "sample",
+	"position_col_name": "position",
 
 	"reference": "hg19",
 	"edist": 4,
 	"n_dev": 4,
 	"read_length": 100,
 	"ref_files": {
-		"ref_fasta": "/net/eichler/vol2/eee_shared/assemblies/human_1kg_v37/human_1kg_v37.fasta",
-		"gaps": "/net/eichler/vol5/home/bknelson/src/Hg19_NecessaryFiles/hg19_Gap.Table.USCS.Clean",
-		"satellite": "/net/eichler/vol5/home/bknelson/src/Hg19_NecessaryFiles/Hg19.Satellite"
+		"hg19": {
+			"ref_fasta": "/net/eichler/vol2/eee_shared/assemblies/human_1kg_v37/human_1kg_v37.fasta",
+			"gaps": "/net/eichler/vol5/home/bknelson/src/Hg19_NecessaryFiles/hg19_Gap.Table.USCS.Clean",
+			"satellite": "/net/eichler/vol5/home/bknelson/src/Hg19_NecessaryFiles/Hg19.Satellite",
+			"mei": "/net/eichler/vol1/home/fhormozd/1000Genome_SV/Alu_L1_Del/Stewart_Alu_L1_Del.hg19",
+			"gc_profile": "/net/eichler/vol2/eee_shared/assemblies/hg19/gc_profile/ucsc.hg19.gc_profile.bed"
+		}
 	}
 }
