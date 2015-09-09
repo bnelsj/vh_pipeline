@@ -4,6 +4,8 @@ import os
 ### Assumes you have run Picard's mark duplicates and insert size calculations
 
 ### Variables that need to be set
+
+shell.prefix("source config.sh; ")
 SAMPLE_DIR = "/net/eichler/vol23/projects/human_diversity/nobackups/bnelsj/vh_hgdp_OCN/vh_pipeline/all_discordant_reads"
 
 MANIFEST = "manifest.txt"
@@ -218,7 +220,7 @@ rule run_selection:
     output: '%s/{num}.SV.{chr}' % VH_OUTDIR
     params: sge_opts='-l mfree=80G -N vhselection', gn = '%s/{num}' % VH_OUTDIR
     shell:
-        'module load VariationHunter/0.4; /net/eichler/vol5/home/bknelson/src/Hg19_NecessaryFiles/Selection_VH_New2 -l {params.gn}.txt -r {params.gn}.ReadName -c {params.gn}.cluster.{wildcards.chr} -t 1000000000 -o {output}'
+        '/net/eichler/vol5/home/bknelson/src/Hg19_NecessaryFiles/Selection_VH_New2 -l {params.gn}.txt -r {params.gn}.ReadName -c {params.gn}.cluster.{wildcards.chr} -t 1000000000 -o {output}'
 
 rule split_clust_by_chr:    
     input: "%s/{num}.cluster" % VH_OUTDIR
@@ -232,7 +234,7 @@ rule run_vh:
     output: '%s/{num}.ReadName' % VH_OUTDIR, '%s/{num}.cluster' % VH_OUTDIR
     params: sge_opts="-l mfree=80G -N run_vh", gn = '%s/{num}' % VH_OUTDIR
     shell:
-        'module load VariationHunter/0.4; VH -i /net/eichler/vol5/home/bknelson/src/Hg19_NecessaryFiles/initInfo -c /net/eichler/vol5/home/bknelson/src/Hg19_NecessaryFiles/AllChro -g /net/eichler/vol5/home/bknelson/src/Hg19_NecessaryFiles/hg19_Gap.Table.USCS.Clean -r /net/eichler/vol5/home/bknelson/src/Hg19_NecessaryFiles/Hg19.Satellite -l {params.gn}.txt -t {params.gn}.ReadName -o {params.gn}.cluster'
+        'VH -i /net/eichler/vol5/home/bknelson/src/Hg19_NecessaryFiles/initInfo -c /net/eichler/vol5/home/bknelson/src/Hg19_NecessaryFiles/AllChro -g /net/eichler/vol5/home/bknelson/src/Hg19_NecessaryFiles/hg19_Gap.Table.USCS.Clean -r /net/eichler/vol5/home/bknelson/src/Hg19_NecessaryFiles/Hg19.Satellite -l {params.gn}.txt -t {params.gn}.ReadName -o {params.gn}.cluster'
 
 rule prep_vh:
     input: 'manifest.txt', expand('%s/{sample}.vh' % ALL_DISCO_DIR, sample = SAMPLES)
