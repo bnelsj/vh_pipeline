@@ -1,4 +1,5 @@
 import os
+import sys
 
 ### Snakefile for VariationHunter pipeline
 ### Assumes you have run Picard's mark duplicates and insert size calculations
@@ -6,6 +7,9 @@ import os
 ### Variables that need to be set
 
 shell.prefix("source config.sh; ")
+
+if config == {}:
+    configfile = "config.json"
 
 SAMPLE_DIR = config["sample_dir"]
 
@@ -38,8 +42,11 @@ VH_CONTIG_CHUNKS = config["vh_contig_chunks"]
 
 if config["isize_method"] == "wham":
     ruleorder: get_isize_from_wham > get_isize_from_picard
-else:
+elif config["isize_method"] == "picard":
     ruleorder: get_isize_from_picard > get_isize_from_wham
+else:
+    print("""Isize method must be "wham" or "picard" """)
+    sys.exit(1)
 
 ### Build list of samples and determine how they will be split into batches
 ### By default, this uses NGROUPS and not VH_GROUP_SIZE
