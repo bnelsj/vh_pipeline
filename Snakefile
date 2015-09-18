@@ -2,16 +2,16 @@ import os
 import sys
 
 ### Snakefile for VariationHunter pipeline
-### Assumes you have run Picard's mark duplicates and insert size calculations
 
 ### Variables that need to be set
 
 shell.prefix("source config.sh; ")
 
 if config == {}:
-    configfile = "config.json"
+    configfile: "config.json"
 
 SAMPLE_DIR = config["sample_dir"]
+EXCLUDE = config["exclude"]
 
 MANIFEST = config["manifest"]
 
@@ -56,7 +56,9 @@ SAMPLES = []
 
 for file in os.listdir(SAMPLE_DIR):
     if file.endswith(SAMPLE_SUFFIX):
-        SAMPLES.append(file.replace("." + SAMPLE_SUFFIX, ""))
+        sn = file.replace("." + SAMPLE_SUFFIX, "")
+        if sn not in EXCLUDE:
+            SAMPLES.append(sn)
 
 ISIZE_PATH = config["isize_path"]
 PICARD_ISIZE_SUFFIX = config["picard_isize_suffix"]
@@ -138,7 +140,6 @@ rule get_depth_file_manifest:
                 infile = [os.path.abspath(file) for file in input if sn in file][0]
                 outfile.write("%s\t%s\n" % (infile, sn))
 
-
 rule get_gc_corrected_read_depth_per_call:
     input: REFERENCE_GC_PROFILE, "%s/{sample}.bam.Depth" % READ_DEPTH_DIR, "calls/VH_calls_gt500bp.clean"
     output: "%s/VH_calls_gt500bp.{sample}.bam.Depth" % "depth"
@@ -150,13 +151,13 @@ rule get_depth:
     input: expand("%s/{sample}.bam.Depth" % READ_DEPTH_DIR, sample = SAMPLES)
     params: sge_opts = ""
 
-rule get_read_depth:
-    input: '%s/{sample}.%s' % (NODUPS_DIR, MARKED_DUPS_SUFFIX)
-    output: "%s/{sample}.bam.Depth" % READ_DEPTH_DIR
-    params: sge_opts = "", tmpfile = "$TMPDIR/{sample}.bam.Depth"
-    shell:
-        "samtools depth {input} > {params.tmpfile}; "
-        "rsync --bwlimit 10000 {params.tmpfile} {output}"
+#rule get_read_depth:
+#    input: '%s/{sample}.%s' % (NODUPS_DIR, MARKED_DUPS_SUFFIX)
+#    output: "%s/{sample}.bam.Depth" % READ_DEPTH_DIR
+#    params: sge_opts = "", tmpfile = "$TMPDIR/{sample}.bam.Depth"
+#    shell:
+#        "samtools depth {input} > {params.tmpfile}; "
+#        "rsync --bwlimit 10000 {params.tmpfile} {output}"
 
 rule get_clean_gt500bp_file:
     input: "calls/VH_calls_gt500bp.tab"

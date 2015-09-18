@@ -1,5 +1,6 @@
 {
-	"sample_dir": "/net/eichler/vol24/projects/human_diversity/nobackups/C_team_bwa_mappings/hgdp_1kg_overlap/",
+	"sample_dir": "/net/eichler/vol24/projects/structural_variation/nobackups/bams/final",
+	"exclude": ["HG00513"],
 	"nodups_dir": "",
 	"manifest": "manifest.txt",
 	"isize_path": "isizes",
