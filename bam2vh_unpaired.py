@@ -216,6 +216,7 @@ if __name__ == '__main__':
         sys.stderr.write('Min isize %d must be less than max isize %d.\n' % (min_isize, max_isize))
         sys.exit(1)
 
+    print "Getting samfile for {sample}. Discarding reads between {min_isize} and {max_isize}.".format(sample = args.sample_name, min_isize = min_isize, max_isize = max_isize)
     samfile = pysam.Samfile(args.filename, check_sq = args.check_sq)
 
     if args.low_qual_reads is not None:
@@ -254,10 +255,16 @@ if __name__ == '__main__':
     samfile.close()
     discordant_file.close()
 
+    print "Finished getting discordant reads."
+
     lq_empty = False
     if args.low_qual_reads is not None:
         lq_file.close()
         lq_empty = is_empty(args.low_qual_reads)
 
-    if args.discordant_read_format != "vh" and is_empty(args.discordant_reads) or lq_empty:
+    if args.discordant_read_format != "vh" and is_empty(args.discordant_reads):
+        print >> sys.stderr, "Error: no discordant reads found."
+        sys.exit(1)
+    elif lq_empty:
+        print >> sys.stderr, "Error: lq file is empty"
         sys.exit(1)

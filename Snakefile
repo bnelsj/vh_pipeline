@@ -3,6 +3,8 @@ import sys
 
 ### Snakefile for VariationHunter pipeline
 
+### Assumes duplicates have been marked
+
 ### Variables that need to be set
 
 shell.prefix("source config.sh; ")
@@ -14,11 +16,6 @@ SAMPLE_DIR = config["sample_dir"]
 EXCLUDE = config["exclude"]
 
 MANIFEST = config["manifest"]
-
-NODUPS_DIR = config["nodups_dir"]
-
-if NODUPS_DIR == "":
-    NODUPS_DIR = SAMPLE_DIR
 
 SAMPLE_SUFFIX = config["sample_suffix"]
 
@@ -91,7 +88,6 @@ ALL_DISCO_DIR = 'all_discordant_reads'
 VH_OUTDIR = 'vh_analysis'
 READ_DEPTH_DIR = "read_depth"
 CALL_DIR = 'calls'
-MARKED_DUPS_SUFFIX = 'bam'
 
 CHR_CONTIGS = ['chr' + str(x) for x in range(1,23)] + ['chrX','chrY']
 CONTIGS = [str(x) for x in range(1,23)] + ['X','Y'] + CHR_CONTIGS
@@ -152,7 +148,7 @@ rule get_depth:
     params: sge_opts = ""
 
 #rule get_read_depth:
-#    input: '%s/{sample}.%s' % (NODUPS_DIR, MARKED_DUPS_SUFFIX)
+#    input: '%s/{sample}.%s' % (SAMPLE_DIR, SAMPLE_SUFFIX)
 #    output: "%s/{sample}.bam.Depth" % READ_DEPTH_DIR
 #    params: sge_opts = "", tmpfile = "$TMPDIR/{sample}.bam.Depth"
 #    shell:
@@ -275,7 +271,7 @@ rule get_vh_files:
     benchmark: "benchmarks/{sample}_vh.json"
     params: sge_opts="-l mfree=8G -N bam2vh"
     shell:
-        """python bam2vh_unpaired.py {input[0]} {input[1]} {wildcards.sample} --discordant_reads {output[0]} --discordant_read_format vh > {output}"""
+        """python bam2vh_unpaired.py {input[0]} {input[1]} {wildcards.sample} --discordant_reads {output[0]} --discordant_read_format vh"""
 
 rule convert_bam_to_fastq:
     input: '%s/{sample}.bam' % ALL_DISCO_DIR, "%s/{sample}.lq.bam" % ALL_DISCO_DIR
@@ -286,10 +282,10 @@ rule convert_bam_to_fastq:
            samtools bam2fq {input[1]} > {output[1]}"""
 
 rule get_all_discordant_reads:
-    input: '%s/{sample}.%s' % (NODUPS_DIR, MARKED_DUPS_SUFFIX), MANIFEST
+    input: '%s/{sample}.%s' % (SAMPLE_DIR, SAMPLE_SUFFIX), MANIFEST
     output: '%s/{sample}.bam' % ALL_DISCO_DIR, "%s/{sample}.lq.bam" % ALL_DISCO_DIR
     benchmark: "benchmarks/{sample}.json"
-    params: sge_opts="-l mfree=8G -N get_disco_rds -cwd -l disk_free=200G"
+    params: sge_opts="-l mfree=30G -N get_disco_rds -cwd -l disk_free=400G"
     shell:
         "samtools bamshuf -O {input[0]} $TMPDIR/{wildcards.sample} | python bam2vh_unpaired.py /dev/stdin {input[1]} {wildcards.sample} --discordant_reads {output[0]} --discordant_read_format bam --low_qual_reads {output[1]}"
 
@@ -301,7 +297,7 @@ rule get_isize_from_wham:
         outfile = open(output[0], "w")
         for infile in input:
             sample_name = os.path.basename(infile.replace("." + WHAM_ISIZE_SUFFIX, ''))
-            sample_path = NODUPS_DIR + '/' + sample_name + '.' + MARKED_DUPS_SUFFIX
+            sample_path = SAMPLE_DIR + '/' + sample_name + '.' + SAMPLE_SUFFIX
             with open(infile, 'r') as reader:
                 median_isize, sd_isize = None, None
                 for line in reader:
@@ -325,7 +321,7 @@ rule get_isize_from_picard:
         outfile = open(output[0], 'w')
         for infile in input:
             sample_name = os.path.basename(infile.replace("." + PICARD_ISIZE_SUFFIX, ''))
-            sample_path = NODUPS_DIR + '/' + sample_name + '.' + MARKED_DUPS_SUFFIX
+            sample_path = SAMPLE_DIR + '/' + sample_name + '.' + SAMPLE_SUFFIX
             with open(infile, 'r') as reader:
                 isize_line = False
                 for line in reader:
@@ -342,7 +338,7 @@ rule get_isize_from_picard:
         outfile.close()
 
 rule calc_isize_picard:
-    input: '%s/{sample}.%s' % (NODUPS_DIR, MARKED_DUPS_SUFFIX)
+    input: '%s/{sample}.%s' % (SAMPLE_DIR, SAMPLE_SUFFIX)
     output: "%s/{sample}.%s" % (ISIZE_PATH, PICARD_ISIZE_SUFFIX)
     params: sge_opts = "-l mfree=8G -N isize_picard"
     shell:
@@ -350,8 +346,8 @@ rule calc_isize_picard:
         """java -Xmx8G -jar $PICARD_DIR/CollectInsertSizeMetrics.jar I={input} O={output} H={output}.hist"""
 
 rule calc_isize_wham:
-    input: '%s/{sample}.%s' % (NODUPS_DIR, MARKED_DUPS_SUFFIX), REFERENCE_FASTA
+    input: '%s/{sample}.%s' % (SAMPLE_DIR, SAMPLE_SUFFIX), REFERENCE_FASTA
     output: "%s/{sample}.%s" % (ISIZE_PATH, WHAM_ISIZE_SUFFIX)
     params: sge_opts = "-l mfree=8G -N isize_wham"
     shell:
-        """{WHAM_PATH}/bin/WHAM-GRAPHENING -s -f {input[0]} -a {input[1]} 2> {output[0]}"""
+        """{WHAM_PATH}/bin/WHAM-GRAPHENING -s -u 5 -f {input[0]} -a {input[1]} > {output[0]}"""

@@ -1,7 +1,6 @@
 {
 	"sample_dir": "/net/eichler/vol24/projects/structural_variation/nobackups/bams/final",
 	"exclude": ["HG00513"],
-	"nodups_dir": "",
 	"manifest": "manifest.txt",
 	"isize_path": "isizes",
 	"sample_suffix": "bam",
@@ -26,7 +25,7 @@
 	"sample_col_name": "sample",
 	"position_col_name": "position",
 
-	"reference": "hg19",
+	"reference": "hg38",
 	"edist": 4,
 	"n_dev": 4,
 	"read_length": 100,
@@ -35,6 +34,13 @@
 			"ref_fasta": "/net/eichler/vol2/eee_shared/assemblies/human_1kg_v37/human_1kg_v37.fasta",
 			"gaps": "/net/eichler/vol5/home/bknelson/src/Hg19_NecessaryFiles/hg19_Gap.Table.USCS.Clean",
 			"satellite": "/net/eichler/vol5/home/bknelson/src/Hg19_NecessaryFiles/Hg19.Satellite",
+			"mei": "/net/eichler/vol1/home/fhormozd/1000Genome_SV/Alu_L1_Del/Stewart_Alu_L1_Del.hg19",
+			"gc_profile": "/net/eichler/vol2/eee_shared/assemblies/hg19/gc_profile/ucsc.hg19.gc_profile.bed"
+		},
+		"hg38": {
+			"ref_fasta": "/net/eichler/vol2/eee_shared/assemblies/GRCh38/GRCh38.fasta",
+			"gaps": "/net/eichler/vol1/home/fhormozd/GRC38_Info/GRC38_gap.txt",
+			"satellite": "/net/eichler/vol1/home/fhormozd/GRC38_Info/GRC38_Satellites.Sorted.bed",
 			"mei": "/net/eichler/vol1/home/fhormozd/1000Genome_SV/Alu_L1_Del/Stewart_Alu_L1_Del.hg19",
 			"gc_profile": "/net/eichler/vol2/eee_shared/assemblies/hg19/gc_profile/ucsc.hg19.gc_profile.bed"
 		}
