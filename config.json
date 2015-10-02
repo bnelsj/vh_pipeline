@@ -1,6 +1,6 @@
 {
-	"sample_dir": "/net/eichler/vol24/projects/structural_variation/nobackups/bams/final",
-	"exclude": ["HG00513"],
+	"sample_dir": "/net/eichler/vol24/projects/human_diversity/nobackups/C_team_bwa_mappings/renamed_priority_set",
+	"exclude": [],
 	"manifest": "manifest.txt",
 	"isize_path": "isizes",
 	"sample_suffix": "bam",
@@ -16,7 +16,7 @@
 	"wham_isize_suffix": "wham_isize.txt",
 	"picard_isize_suffix": "insert_size_metrics.txt",
 
-	"group_size": 22,
+	"group_size": 20,
 	"ngroups": 1,
 
 	"family_batches": 0,
@@ -25,9 +25,9 @@
 	"sample_col_name": "sample",
 	"position_col_name": "position",
 
-	"reference": "hg38",
+	"reference": "hg19",
 	"edist": 4,
-	"n_dev": 4,
+	"n_dev": 3,
 	"read_length": 100,
 	"ref_files": {
 		"hg19": {
