@@ -57,6 +57,8 @@ for file in os.listdir(SAMPLE_DIR):
             sn = file.replace("." + SAMPLE_SUFFIX, "")
             if sn not in EXCLUDE:
                 SAMPLES.append(sn)
+        else:
+            print("Cannot find index for sample %s.\n" % file)
 
 ISIZE_PATH = config["isize_path"]
 PICARD_ISIZE_SUFFIX = config["picard_isize_suffix"]
