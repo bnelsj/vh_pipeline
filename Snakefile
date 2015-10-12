@@ -53,9 +53,10 @@ SAMPLES = []
 
 for file in os.listdir(SAMPLE_DIR):
     if file.endswith(SAMPLE_SUFFIX):
-        sn = file.replace("." + SAMPLE_SUFFIX, "")
-        if sn not in EXCLUDE:
-            SAMPLES.append(sn)
+        if os.path.exists(SAMPLE_DIR + "/" + file + ".bai"):
+            sn = file.replace("." + SAMPLE_SUFFIX, "")
+            if sn not in EXCLUDE:
+                SAMPLES.append(sn)
 
 ISIZE_PATH = config["isize_path"]
 PICARD_ISIZE_SUFFIX = config["picard_isize_suffix"]
@@ -109,6 +110,8 @@ for dir in dirs_to_check:
 
 ### Begin rule definitions
 
+localrules: all, get_isize_from_wham, get_isize_from_picard
+
 rule all:
     input: "final_calls.bed" #expand("svs/{chr}.SV.DEL.merged.MEI", chr = CHR_CONTIGS)
     params: sge_opts=""
@@ -147,13 +150,13 @@ rule get_depth:
     input: expand("%s/{sample}.bam.Depth" % READ_DEPTH_DIR, sample = SAMPLES)
     params: sge_opts = ""
 
-#rule get_read_depth:
-#    input: '%s/{sample}.%s' % (SAMPLE_DIR, SAMPLE_SUFFIX)
-#    output: "%s/{sample}.bam.Depth" % READ_DEPTH_DIR
-#    params: sge_opts = "", tmpfile = "$TMPDIR/{sample}.bam.Depth"
-#    shell:
-#        "samtools depth {input} > {params.tmpfile}; "
-#        "rsync --bwlimit 10000 {params.tmpfile} {output}"
+rule get_read_depth:
+    input: '%s/{sample}.%s' % (SAMPLE_DIR, SAMPLE_SUFFIX)
+    output: "%s/{sample}.bam.Depth" % READ_DEPTH_DIR
+    params: sge_opts = "", tmpfile = "$TMPDIR/{sample}.bam.Depth"
+    shell:
+        "samtools depth {input} > {params.tmpfile}; "
+        "rsync --bwlimit 10000 {params.tmpfile} {output}"
 
 rule get_clean_gt500bp_file:
     input: "calls/VH_calls_gt500bp.tab"
@@ -274,20 +277,19 @@ rule get_vh_files:
         """python bam2vh_unpaired.py {input[0]} {input[1]} {wildcards.sample} --discordant_reads {output[0]} --discordant_read_format vh"""
 
 rule convert_bam_to_fastq:
-    input: '%s/{sample}.bam' % ALL_DISCO_DIR, "%s/{sample}.lq.bam" % ALL_DISCO_DIR
-    output: '%s/{sample}.fq' % ALL_DISCO_DIR, "%s/{sample}.lq.fq" % ALL_DISCO_DIR
+    input: '%s/{sample}.bam' % ALL_DISCO_DIR
+    output: '%s/{sample}.fq' % ALL_DISCO_DIR
     params: sge_opts="-l mfree=8G -N bam2fq"
     shell:
-        """samtools bam2fq {input[0]} > {output[0]}
-           samtools bam2fq {input[1]} > {output[1]}"""
+        """samtools bam2fq {input[0]} > {output[0]}"""
 
 rule get_all_discordant_reads:
     input: '%s/{sample}.%s' % (SAMPLE_DIR, SAMPLE_SUFFIX), MANIFEST
-    output: '%s/{sample}.bam' % ALL_DISCO_DIR, "%s/{sample}.lq.bam" % ALL_DISCO_DIR
+    output: '%s/{sample}.bam' % ALL_DISCO_DIR
     benchmark: "benchmarks/{sample}.json"
-    params: sge_opts="-l mfree=30G -N get_disco_rds -cwd -l disk_free=400G"
+    params: sge_opts="-l mfree=30G -N get_disco_rds -cwd -l disk_free=400G -R y", lq_path = "lq_reads/{sample}.lq.bam" % ALL_DISCO_DIR
     shell:
-        "samtools bamshuf -O {input[0]} $TMPDIR/{wildcards.sample} | python bam2vh_unpaired.py /dev/stdin {input[1]} {wildcards.sample} --discordant_reads {output[0]} --discordant_read_format bam --low_qual_reads {output[1]}"
+        "samtools bamshuf -O {input[0]} $TMPDIR/{wildcards.sample} | python bam2vh_unpaired.py /dev/stdin {input[1]} {wildcards.sample} --discordant_reads {output[0]} --discordant_read_format bam --low_qual_reads {params.lq_path}"
 
 rule get_isize_from_wham:
     input: expand("%s/{sample}.%s" % (ISIZE_PATH, WHAM_ISIZE_SUFFIX), sample = SAMPLES)
