@@ -45,6 +45,8 @@ else:
     print("""Isize method must be "wham" or "picard" """)
     sys.exit(1)
 
+ruleorder: merge_discordant_reads_by_chr > get_all_discordant_reads
+
 ### Build list of samples and determine how they will be split into batches
 ### By default, this uses NGROUPS and not VH_GROUP_SIZE
 ### assigns samples to groups based on family as listed in MANIFEST
@@ -58,7 +60,7 @@ for file in os.listdir(SAMPLE_DIR):
             if sn not in EXCLUDE:
                 SAMPLES.append(sn)
         else:
-            print("Cannot find index for sample %s.\n" % file)
+            print("Cannot find index for sample %s" % file)
 
 ISIZE_PATH = config["isize_path"]
 PICARD_ISIZE_SUFFIX = config["picard_isize_suffix"]
@@ -92,13 +94,16 @@ VH_OUTDIR = 'vh_analysis'
 READ_DEPTH_DIR = "read_depth"
 CALL_DIR = 'calls'
 
-CHR_CONTIGS = ['chr' + str(x) for x in range(1,23)] + ['chrX','chrY']
-CONTIGS = [str(x) for x in range(1,23)] + ['X','Y'] + CHR_CONTIGS
+CHR_CONTIGS = sorted(['chr' + str(x) for x in range(1,23)] + ['chrX','chrY'])
+TRIMMED_CONTIGS = sorted([str(x) for x in range(1,23)] + ['X','Y'])
+CONTIGS = sorted([str(x) for x in range(1,23)] + ['X','Y'] + CHR_CONTIGS)
 INCLUDE_CHRS = ':'.join(CONTIGS)
+
+DISCO_CONTIGS = TRIMMED_CONTIGS
 
 ### Create directories, load modules
 
-dirs_to_check = ['log']
+dirs_to_check = ["log", "lq_reads"]
 
 def _get_family_string(wildcards):
 	if FAMILY_BATCHES:
@@ -285,11 +290,30 @@ rule convert_bam_to_fastq:
     shell:
         """samtools bam2fq {input[0]} > {output[0]}"""
 
+rule merge_discordant_reads_by_chr:
+    input: expand('%s/{{sample}}.{chr}.bam' % "disco_by_chr", chr = DISCO_CONTIGS)
+    output: '%s/{sample}.bam' % ALL_DISCO_DIR
+    params: sge_opts = "-l mfree=30G"
+    shell:
+        "samtools merge {output} {input}"
+
+rule get_discordant_reads_by_chr:
+    input: '%s/{sample}.%s' % (SAMPLE_DIR, SAMPLE_SUFFIX), MANIFEST
+    output: '%s/{sample}.{chr}.bam' % "disco_by_chr"
+    benchmark: "benchmarks/{sample}.{chr}.json"
+    params: sge_opts="-l mfree=15G -N get_disco_rds -cwd -l ssd=TRUE -l data_scratch_ssd_disk_free=50G -pe serial 1", lq_path = "lq_reads/{sample}.{chr}.lq.bam", chr = "{chr}"
+    run:
+        shell("mkdir -p /data/scratch/ssd/vh")
+        shell("samtools view -hb {input[0]} {params.chr} | "
+              "samtools bamshuf -O /dev/stdin /data/scratch/ssd/vh/{wildcards.sample}.{params.chr}.tmp | "
+              "python bam2vh_unpaired.py /dev/stdin {input[1]} {wildcards.sample} --discordant_reads {output[0]} --discordant_read_format bam --low_qual_reads {params.lq_path}"
+             )
+
 rule get_all_discordant_reads:
     input: '%s/{sample}.%s' % (SAMPLE_DIR, SAMPLE_SUFFIX), MANIFEST
     output: '%s/{sample}.bam' % ALL_DISCO_DIR
     benchmark: "benchmarks/{sample}.json"
-    params: sge_opts="-l mfree=30G -N get_disco_rds -cwd -l disk_free=400G -R y", lq_path = "lq_reads/{sample}.lq.bam" % ALL_DISCO_DIR
+    params: sge_opts="-l mfree=30G -N get_disco_rds -cwd -l disk_free=400G -pe serial 1", lq_path = "lq_reads/{sample}.lq.bam"
     shell:
         "samtools bamshuf -O {input[0]} $TMPDIR/{wildcards.sample} | python bam2vh_unpaired.py /dev/stdin {input[1]} {wildcards.sample} --discordant_reads {output[0]} --discordant_read_format bam --low_qual_reads {params.lq_path}"
 
