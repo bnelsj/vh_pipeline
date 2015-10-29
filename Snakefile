@@ -84,8 +84,8 @@ if not FAMILY_BATCHES:
     while NGROUPS * VH_GROUP_SIZE < SIZE:
         NGROUPS += 1
 
-GROUPS = [str(x).zfill(len(str(NGROUPS))) for x in range(NGROUPS)]
-SUFFIX_LIST = [str(x).zfill(len(str(NGROUPS))) for x in range(NGROUPS)]
+GROUPS = [str(x) for x in range(NGROUPS)]
+SUFFIX_LIST = [str(x) for x in range(NGROUPS)]
 
 ### Snakemake variables that probably don't need to be changed
 
