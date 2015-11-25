@@ -34,7 +34,7 @@ typedef struct SV{
 }SV;
 
 
-SV listSV[5000000];
+SV listSV[28000000];
 int countSV;
 
 char samplesName[maxNumSamples][100];
@@ -164,6 +164,8 @@ int  assignBWA_WSSD_ReadDepthFrom(FILE *fp7, FILE *fp8)
 	int pos1, pos2;
 	char chroName[10];
 	float tempF, cnvCount;
+
+	// Building list of SV names
 	while(fscanf(fp8, "%s\n", SVNameTemp)!=EOF)
 	{
 		SVIdArray[counSVNameList]=binarySearch(0, countSV, SVNameTemp);
@@ -172,6 +174,7 @@ int  assignBWA_WSSD_ReadDepthFrom(FILE *fp7, FILE *fp8)
 
 
 int countLoci2=0;
+	// Reading sample:file map file
 	while(fscanf(fp7,"%s\t%s\n", fileName, sample)!=EOF)
 	{
 countLoci2=0;
@@ -184,7 +187,7 @@ countLoci2=0;
 		fp9=fopen(fileName, "r");
 		
 		//chr10	74306	74825	CNV:1.938747	0.410072	0.018000	
-		
+		// Read depth file for each sample
 		for (int count=0; count<counSVNameList; count++)
 		{
 			fscanf(fp9,"%s\t%i\t%i\tCNV:%f\t%f\t%f\n", chroName, &pos1, &pos2, &(listSV[SVIdArray[count]].wssdCNV_BWA[sampleId]), &tempF, &tempF);
@@ -248,7 +251,7 @@ int main(int argv, char *argc[])
 */
 
 
-
+    printf("Read SV paired end info\n");
 	while(fscanf(fp2,"%s\t%i\t%i\t%s\t%i\t%f", listSV[countSV].chroName, &listSV[countSV].posInnerLeft, &listSV[countSV].posInnerRight, listSV[countSV].SVName, &listSV[countSV].totalSup, &listSV[countSV].averageEditDist)!=EOF)
 	{
 		for (int count=0; count<totalNumSamples; count++)
