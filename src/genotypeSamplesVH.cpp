@@ -45,12 +45,17 @@ THE SOFTWARE.
 #include "split.h"
 #include <fstream>
 #include <map>
+#include "../tabixpp/tabix.hpp"
 
 std::map<std::string, int> mei_names;
+
+std::map<std::string, Tabix*> sampleRDPath;
+std::vector<std::string> samples;
 
 struct indivDat{
 	double libSupport;
 	double averageEdist;
+   double readDepth;
 };
 
 struct options{
@@ -130,10 +135,14 @@ void sub()
 std::string indivDatGenotype(std::vector<indivDat*> &dat)
 {
 	std::stringstream stream;
-	stream << "\tLS:ED";
+	stream << "\tGT:LS:ED:RD";
 	for(std::vector<indivDat*>::iterator j = dat.begin();
 		j != dat.end(); j++) {
-		stream << "\t" << (*j)->libSupport << ":" << (*j)->averageEdist;
+	  stream << "\t" << "./.:" << (*j)->libSupport << ":" << (*j)->averageEdist << ":";
+		if((*j)->readDepth == -1)
+			stream << ".";
+		else
+			stream << (*j)->readDepth;
 	}
 	return stream.str();
 }
@@ -148,10 +157,38 @@ std::string indivDatGenotype(std::vector<indivDat*> &dat)
 
 */
 
+double getReadDepth(std::string &region, Tabix* tbx)
+{
+	std::string line;
+	double rd = -1;
+	tbx->setRegion(region);
+	if(tbx->getNextLine(line)) {
+		std::vector<std::string> linDat = split(line, "\t");
+		std::string rdStr = linDat[3].substr(4);
+		rd = atof(rdStr.c_str());
+	}
+	return rd;
+}
+//------------------------------- SUBROUTINE --------------------------------
+/*
+ Function input  :
+
+ Function does   :
+
+ Function returns:
+
+*/
+
 void processLine(std::string &line)
 {
 	std::vector<std::string> lineDat;
+	std::stringstream ss;
+
 	lineDat = split(line, "\t");
+
+	ss << lineDat[0] << ":" << lineDat[1] << "-" << lineDat[2];
+	std::string region = ss.str();
+
 	std::vector<std::string> lineDat2 = split(lineDat[5], " ");
 	std::vector<indivDat*> individuals;
 
@@ -159,17 +196,18 @@ void processLine(std::string &line)
 		std::cerr << "Error: Wrong number of columns in SV file" << std::endl;
 		exit(1);
 	}
-	std::cout << lineDat2.size() << std::endl;
-	for(int i=1; i < lineDat2.size(); i+=2) {
-		indivDat* tmp = new indivDat;
-		tmp->libSupport = atof(lineDat2[i].c_str());
-		tmp->averageEdist = atof(lineDat2[i+1].c_str());
-		individuals.push_back(tmp);
-	}
 
-	if(mei_names.find(lineDat[3]) != mei_names.end()) {
-		std::cout << "Found mei call " << line << std::endl;
-		exit(0);
+	for(int i=1; i < lineDat2.size(); i+=2) {
+		indivDat* indivSV = new indivDat;
+		indivSV->libSupport = atof(lineDat2[i].c_str());
+		indivSV->averageEdist = atof(lineDat2[i+1].c_str());
+
+		if(sampleRDPath[samples[(i-1)/2]] != NULL) {
+			indivSV->readDepth = getReadDepth(region, sampleRDPath[samples[(i-1)/2]]);
+		} else {
+			indivSV->readDepth = -1;
+		}
+		individuals.push_back(indivSV);
 	}
 
 	std::cout << indivDatGenotype(individuals) << std::endl;
@@ -178,6 +216,7 @@ void processLine(std::string &line)
 		delete (*j);
 	}
 }
+
 //-------------------------------    MAIN     --------------------------------
 /*
  Comments:
@@ -185,7 +224,7 @@ void processLine(std::string &line)
 
 int main( int argc, char** argv)
 {
-int parse = parseOpts(argc, argv);
+	int parse = parseOpts(argc, argv);
 
 	// Read MEI file
 	if (globalOpts.MEI.empty()) {
@@ -207,6 +246,36 @@ int parse = parseOpts(argc, argv);
 	}
 
 	mei.close();
+
+	// Read depth manifest
+	if (globalOpts.readDepthManifest.empty()) {
+		std::cerr << "Error: no read depth manifest file provided" << std::endl;
+		exit(1);
+	}
+
+	std::ifstream manifest;
+	std::vector<std::string> sn_file_pair;
+	manifest.open(globalOpts.readDepthManifest.c_str());
+	if(!manifest.is_open()) {
+		std::cerr << "Error: Cannot open read depth manifest file" << std::endl;
+		exit(1);
+	} else {
+      while(manifest.good()) {
+		   getline(manifest, line);
+		   sn_file_pair = split(line, "\t");
+			samples.push_back(sn_file_pair[0]);
+
+			// Get pointer map to tabix files
+		   if(!sn_file_pair[1].empty()) {
+		   	Tabix* tmpTabix = new Tabix(sn_file_pair[1]);
+		      sampleRDPath[sn_file_pair[0]] = tmpTabix;
+         } else {
+				sampleRDPath[sn_file_pair[0]] = NULL;
+			}
+		}
+	}
+	manifest.close();
+	
 
 	// Read SV file
 
