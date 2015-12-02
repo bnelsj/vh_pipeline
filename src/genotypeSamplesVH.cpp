@@ -45,6 +45,7 @@ THE SOFTWARE.
 #include "split.h"
 #include <fstream>
 #include <map>
+#include <algorithm>
 #include "../tabixpp/tabix.hpp"
 
 std::map<std::string, int> mei_names;
@@ -55,11 +56,12 @@ std::vector<std::string> samples;
 struct indivDat{
 	double libSupport;
 	double averageEdist;
-   double readDepth;
+	double readDepth;
+	std::string genotype;
 };
 
 struct options{
-   std::string file;
+	std::string file;
 	std::string readDepthManifest;
 	std::string MEI;
 	std::string probands;
@@ -132,13 +134,79 @@ void sub()
  Function returns:
 
 */
+std::string getInfoField(std::string &svName, std::vector<indivDat*> &dat)
+{
+	std::stringstream stream;
+	stream << "\tSVTYPE=DEL;MEI=";
+	if(mei_names.find(svName) != mei_names.end()) {
+		stream << "1;";
+	} else {
+		stream << "0;";
+	}
+
+	int maxLibSup = 0;
+	int nSampleSup = 0;
+	int sumSupRD = 0;
+	int sumNoSupRD = 0;
+
+	int nSamples = dat.size();
+
+	for(std::vector<indivDat*>::iterator j = dat.begin();
+		j != dat.end(); j++) {
+		if((*j)->libSupport > 0) {
+			nSampleSup++;
+			if((*j)->readDepth != -1) {
+				sumSupRD += (*j)->readDepth;
+			}
+
+			if((*j)->libSupport > maxLibSup) {
+				maxLibSup = (*j)->libSupport;
+			}
+		} else {
+			if((*j)->readDepth != -1) {
+				sumNoSupRD += (*j)->readDepth;
+			}
+		}
+		// Genotype samples
+		if((*j)->libSupport > 0 && (*j)->readDepth <= 1.6) {
+			(*j)->genotype = "#/1";
+		} else if((*j)->readDepth != -1 && (*j)->readDepth < 1.4) {
+			(*j)->genotype = "#/1";
+		} else {
+			(*j)->genotype = "#/0";
+		}
+	}
+
+	float supRDMean = (float) sumSupRD/nSampleSup;
+	float noSupRDMean = (float) sumNoSupRD/(nSamples - nSampleSup);
+
+	int goodRDCall;
+	if(supRDMean < 1.4 && noSupRDMean - supRDMean > 0.6)
+		goodRDCall = 1;
+	else
+		goodRDCall = 0;
+
+	stream << "GOODRDCALL=" << goodRDCall << ";SUPPORTRDMEAN=" << supRDMean << ";NOSUPPORTRDMEAN=" << noSupRDMean << ";MAXLIBSUPPORT=" << maxLibSup;
+
+	return stream.str();
+}
+
+//------------------------------- SUBROUTINE --------------------------------
+/*
+ Function input  :
+
+ Function does   :
+
+ Function returns:
+
+*/
 std::string indivDatGenotype(std::vector<indivDat*> &dat)
 {
 	std::stringstream stream;
 	stream << "\tGT:LS:ED:RD";
 	for(std::vector<indivDat*>::iterator j = dat.begin();
 		j != dat.end(); j++) {
-	  stream << "\t" << "./.:" << (*j)->libSupport << ":" << (*j)->averageEdist << ":";
+	  stream << "\t" << (*j)->genotype << ":" << (*j)->libSupport << ":" << (*j)->averageEdist << ":";
 		if((*j)->readDepth == -1)
 			stream << ".";
 		else
@@ -157,15 +225,17 @@ std::string indivDatGenotype(std::vector<indivDat*> &dat)
 
 */
 
-double getReadDepth(std::string &region, Tabix* tbx)
+double getReadDepth(std::string &region, std::string &start, std::string &end, Tabix* tbx)
 {
 	std::string line;
 	double rd = -1;
 	tbx->setRegion(region);
 	if(tbx->getNextLine(line)) {
 		std::vector<std::string> linDat = split(line, "\t");
-		std::string rdStr = linDat[3].substr(4);
-		rd = atof(rdStr.c_str());
+		if(start == linDat[1] && end == linDat[2]) {
+			std::string rdStr = linDat[3].substr(4);
+			rd = atof(rdStr.c_str());
+		}
 	}
 	return rd;
 }
@@ -203,14 +273,16 @@ void processLine(std::string &line)
 		indivSV->averageEdist = atof(lineDat2[i+1].c_str());
 
 		if(sampleRDPath[samples[(i-1)/2]] != NULL) {
-			indivSV->readDepth = getReadDepth(region, sampleRDPath[samples[(i-1)/2]]);
+			indivSV->readDepth = getReadDepth(region, lineDat[1], lineDat[2], sampleRDPath[samples[(i-1)/2]]);
 		} else {
 			indivSV->readDepth = -1;
 		}
 		individuals.push_back(indivSV);
 	}
 
-	std::cout << indivDatGenotype(individuals) << std::endl;
+	std::string svInfo = getInfoField(lineDat[3], individuals);
+
+	std::cout << lineDat[0] << "\t" << lineDat[1] << "\t.\t.\t.\t.\t" << svInfo << "\t" << indivDatGenotype(individuals) << std::endl;
 	for(std::vector<indivDat*>::iterator j = individuals.begin();
 		j != individuals.end(); j++) {
 		delete (*j);
@@ -260,15 +332,15 @@ int main( int argc, char** argv)
 		std::cerr << "Error: Cannot open read depth manifest file" << std::endl;
 		exit(1);
 	} else {
-      while(manifest.good()) {
-		   getline(manifest, line);
-		   sn_file_pair = split(line, "\t");
+		while(manifest.good()) {
+			getline(manifest, line);
+			sn_file_pair = split(line, "\t");
 			samples.push_back(sn_file_pair[0]);
 
 			// Get pointer map to tabix files
-		   if(!sn_file_pair[1].empty()) {
-		   	Tabix* tmpTabix = new Tabix(sn_file_pair[1]);
-		      sampleRDPath[sn_file_pair[0]] = tmpTabix;
+			if(!sn_file_pair[1].empty()) {
+		   		Tabix* tmpTabix = new Tabix(sn_file_pair[1]);
+		      	sampleRDPath[sn_file_pair[0]] = tmpTabix;
          } else {
 				sampleRDPath[sn_file_pair[0]] = NULL;
 			}
