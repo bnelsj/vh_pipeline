@@ -42,7 +42,7 @@ char samplesOtherName[maxNumSamples][100];
 int isProbandOrSibling[maxNumSamples];// indicats if a smaple is probands ot sibling 
 char wssdSamplesName[maxNumSamples][100];
 int convertWSSDSampleNameToSV[maxNumSamples];// Array[WSSD]-> SV sample
-int totalNumSamples;
+int totalNumSamples=0;
 
 int compare(const void *a, const void *b)
 {
@@ -237,7 +237,7 @@ int main(int argv, char *argc[])
 	FILE *fp8=fopen(argc[6],"r");// the name of the SVs in the BWA readdepth7
 	char tempStr[100];
 
-
+	// Count sample names
 	while(fscanf(fp1,"%s\n", samplesName[totalNumSamples])!=EOF)
 	{
 		totalNumSamples++;
@@ -251,7 +251,7 @@ int main(int argv, char *argc[])
 */
 
 
-    printf("Read SV paired end info\n");
+    //Read SV paired end info
 	while(fscanf(fp2,"%s\t%i\t%i\t%s\t%i\t%f", listSV[countSV].chroName, &listSV[countSV].posInnerLeft, &listSV[countSV].posInnerRight, listSV[countSV].SVName, &listSV[countSV].totalSup, &listSV[countSV].averageEditDist)!=EOF)
 	{
 		for (int count=0; count<totalNumSamples; count++)
@@ -262,7 +262,7 @@ int main(int argv, char *argc[])
 		}
 		fscanf(fp2,"\n");
 		countSV++;
-	}//	printf("L91\n");
+	}
 
 	printf("L253\n");
 	
