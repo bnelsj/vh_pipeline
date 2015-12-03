@@ -45,8 +45,8 @@ else:
     print("""Isize method must be "wham" or "picard" """)
     sys.exit(1)
 
-ruleorder: merge_discordant_reads_by_chr > get_all_discordant_reads
-
+#ruleorder: merge_discordant_reads_by_chr > get_all_discordant_reads
+ruleorder: get_all_discordant_reads > merge_discordant_reads_by_chr
 ### Build list of samples and determine how they will be split into batches
 ### By default, this uses NGROUPS and not VH_GROUP_SIZE
 ### assigns samples to groups based on family as listed in MANIFEST
@@ -120,15 +120,36 @@ for dir in dirs_to_check:
 localrules: all, get_isize_from_wham, get_isize_from_picard
 
 rule all:
-    input: "final_calls.bed" #expand("svs/{chr}.SV.DEL.merged.MEI", chr = CHR_CONTIGS)
+    input: "final_calls/final_calls.bed" #expand("svs/{chr}.SV.DEL.merged.MEI", chr = CHR_CONTIGS)
     params: sge_opts=""
 
-rule genotype_samples: # max SV list size set to 5 million for svs/ALL.SV.DEL.merged.
-    input: "samples.txt", "svs/ALL.SV.DEL.merged",  "calls/Alu_L1_SV_Picked.txt", "proband_list.txt", "depth_file_manifest.txt", "calls/VH_calls_gt500bp.txt"
-    output: "final_calls.bed"
-    params: sge_opts = "-l mfree=64G"
+#rule genotype_samples: # max SV list size set to 5 million for svs/ALL.SV.DEL.merged.
+#    input: "samples.txt", "svs/ALL.SV.DEL.merged",  "calls/Alu_L1_SV_Picked.txt", "proband_list.txt", "depth_file_manifest.txt", "calls/VH_calls_gt500bp.txt"
+#    output: "final_calls.bed"
+#    params: sge_opts = "-l mfree=300G"
+#    shell:
+#        "./bin/genotype_MultipleSamples2 {input} > {output}"
+
+rule merge_genotyped_calls:
+    input: expand("final_calls/final_calls.{chr}.bed", chr = CHR_CONTIGS)
+    output: "final_calls/final_calls.bed"
+    params: sge_opts = "-l mfree=8G"
     shell:
-        "./bin/genotype_MultipleSamples2 {input} > {output}"
+        "cat {input} > {output}"
+
+#rule genotype_samples_by_chr:
+#    input: "samples.txt", "svs/{chr}.SV.DEL.merged", "calls/Alu_L1_SV_Picked.txt", "proband_list.txt", "depth_file_manifest.txt", "calls/VH_calls_gt500bp.txt"
+#    output: "final_calls/final_calls.{chr}.bed"
+#    params: sge_opts = "-l mfree=300G"
+#    shell:
+#        "./bin_old/genotype_MultipleSamples2 {input} > {output}"
+
+rule genotype_samples_by_chr_new:
+    input: svs="svs/{chr}.SV.DEL.merged", mei="calls/Alu_L1_SV_Picked.txt", rd_manifest="samples.tabix.txt"
+    output: "final_calls/final_calls.{chr}.bed"
+    params: sge_opts = "-l mfree=20G"
+    shell:
+        "./bin/genotypeSamplesVH -f {input.svs} -m {input.mei} -r {input.rd_manifest} > {output}"
 
 rule get_proband_samples:
     input: "samples.txt"
@@ -145,6 +166,46 @@ rule get_depth_file_manifest:
             for sn in SAMPLES:
                 infile = [os.path.abspath(file) for file in input if sn in file][0]
                 outfile.write("%s\t%s\n" % (infile, sn))
+
+rule get_tabix_depth_manifest:
+    input: expand("%s/VH_calls_gt500bp.{sample}.bam.Depth.sort.bed.gz.tbi" % "depth", sample = SAMPLES), "samples.txt"
+    output: "samples.tabix.txt"
+    params: sge_opts = ""
+    run:
+        sn_tbx = []
+        with open("samples.txt", "r") as reader:
+            for line in reader:
+                sn = line.rstrip()
+                tbx_list = [fn for fn in input if sn in fn]
+                tbx = ""
+                if len(tbx_list) > 0:
+                    tbx = tbx_list[0].replace(".tbi", "")
+                sn_tbx.append((sn, tbx))
+
+        with open(output[0], "w") as outfile:
+            for (sn, tbx) in sn_tbx:
+                outfile.write("\t".join([sn, tbx]) + "\n")
+
+rule tabix_index_depth_files:
+    input: "%s/VH_calls_gt500bp.{sample}.bam.Depth.sort.bed.gz" % "depth"
+    output: "%s/VH_calls_gt500bp.{sample}.bam.Depth.sort.bed.gz.tbi" % "depth"
+    params: sge_opts = ""
+    shell:
+        "tabix -p bed {input}"
+
+rule bgzip_depth_files:
+    input: "%s/VH_calls_gt500bp.{sample}.bam.Depth.sort.bed" % "depth"
+    output: "%s/VH_calls_gt500bp.{sample}.bam.Depth.sort.bed.gz" % "depth"
+    params: sge_opts = ""
+    shell:
+        "bgzip {input}"
+
+rule sort_depth_files:
+    input: "%s/VH_calls_gt500bp.{sample}.bam.Depth" % "depth"
+    output: "%s/VH_calls_gt500bp.{sample}.bam.Depth.sort.bed" % "depth"
+    params: sge_opts = ""
+    shell:
+        "bedtools sort -i {input} > {output}"
 
 rule get_gc_corrected_read_depth_per_call:
     input: REFERENCE_GC_PROFILE, "%s/{sample}.bam.Depth" % READ_DEPTH_DIR, "calls/VH_calls_gt500bp.clean"
@@ -201,7 +262,7 @@ rule get_picked_mei:
 rule get_mei_svs: # Currently set for max of 160 samples
     input: "svs/{chr}.SV.DEL.merged"
     output: "svs/{chr}.SV.DEL.merged.MEI"
-    params: sge_opts = "-l mfree=8G"
+    params: sge_opts = "-l mfree=8G -N get_mei_svs"
     shell: "bin/spansKnownME {MEI} {input} > {output}"
 
 rule get_merged:
@@ -211,7 +272,7 @@ rule get_merged:
 rule merge_samples: # Need to test mergeSamples with different number of samples
     input: "svs/ALL.SV.{chr}.DEL", "samples.txt"
     output: "svs/{chr}.SV.DEL.merged"
-    params: sge_opts = "-l mfree=8G", nsamples = str(len(SAMPLES))
+    params: sge_opts = "-l mfree=60G -N merge_samples", nsamples = str(len(SAMPLES))
     run:
         with open(input[0]) as f:
             for i, l in enumerate(f):
@@ -255,7 +316,7 @@ rule split_clust_by_chr:
     output: "%s/{num}.cluster.{chr}" % VH_OUTDIR
     params: sge_opts="-l mfree=8G", chr = "{chr}"
     shell:
-        "grep -w {params.chr} {input} > {output}"
+        "grep -w {params.chr} {input} > {output}; touch {output}"
 
 rule run_vh:
     input: '%s/{num}.txt' % VH_OUTDIR
@@ -264,12 +325,12 @@ rule run_vh:
     shell:
         '{VH_CLUSTER} -i {VH_INIT_INFO} -c {VH_CONTIG_CHUNKS} -g {REFERENCE_GAPS} -r {REFERENCE_SATELLITE} -l {input} -t {output[0]} -o {output[1]}'
 
-rule prep_vh:
-    input: 'manifest.txt', expand('%s/{sample}.vh' % ALL_DISCO_DIR, sample = SAMPLES)
-    output: '{vhdir}/{num}.txt'.format(num=num, vhdir=VH_OUTDIR) for num in SUFFIX_LIST
-    params: sge_opts='-N make_batches', family_string = _get_family_string
-    shell:
-        'python prep_divet_manifest.py --group_size {VH_GROUP_SIZE} --n_groups {NGROUPS} --manifest {input[0]} --outdir {VH_OUTDIR} --vhdir {ALL_DISCO_DIR} {params.family_string}'
+#rule prep_vh:
+#    input: 'manifest.txt', expand('%s/{sample}.vh' % ALL_DISCO_DIR, sample = SAMPLES)
+#    output: '{vhdir}/{num}.txt'.format(num=num, vhdir=VH_OUTDIR) for num in SUFFIX_LIST
+#    params: sge_opts='-N make_batches', family_string = _get_family_string
+#    shell:
+#        'python prep_divet_manifest.py --group_size {VH_GROUP_SIZE} --n_groups {NGROUPS} --manifest {input[0]} --outdir {VH_OUTDIR} --vhdir {ALL_DISCO_DIR} {params.family_string}'
 
 rule do_get_vh_files:
     input: expand('%s/{sample}.vh' % ALL_DISCO_DIR, sample = SAMPLES)
