@@ -169,11 +169,11 @@ std::string getInfoField(std::string &svName, std::vector<indivDat*> &dat)
 		}
 		// Genotype samples
 		if((*j)->libSupport > 0 && (*j)->readDepth != -1 && (*j)->readDepth <= 1.6) {
-			(*j)->genotype = "!/1";
+			(*j)->genotype = "./1";
 		} else if((*j)->readDepth != -1 && (*j)->readDepth < 1.4) {
-			(*j)->genotype = "!/1";
+			(*j)->genotype = "./1";
 		} else {
-			(*j)->genotype = "!/0";
+			(*j)->genotype = "./0";
 		}
 	}
 
@@ -186,7 +186,7 @@ std::string getInfoField(std::string &svName, std::vector<indivDat*> &dat)
 	else
 		goodRDCall = 0;
 
-	stream << "GOODRDCALL=" << goodRDCall << ";SUPPORTRDMEAN=" << supRDMean << ";NOSUPPORTRDMEAN=" << noSupRDMean << ";MAXLIBSUPPORT=" << maxLibSup;
+	stream << "GOODCNCALL=" << goodRDCall << ";SUPPORTCNMEAN=" << supRDMean << ";NOSUPPORTCNMEAN=" << noSupRDMean << ";MAXLIBSUPPORT=" << maxLibSup;
 	stream << ";CIPOS=-10,0;CIEND=0,10";
 
 	return stream.str();
@@ -264,10 +264,11 @@ void printVCFHeader(vector<std::string> &samples){
   header << "##INFO=<ID=POS,Number=2,Type=String,Description=\"POS and END\">" << endl;
   header << "##INFO=<ID=CIPOS,Number=2,Type=Integer,Description=\"Confidence interval around POS for imprecise variants\">" << endl;
   header << "##INFO=<ID=CIEND,Number=2,Type=Integer,Description=\"Confidence interval around END for imprecise variants\">" << endl;
-  header << "##INFO=<ID=GOODRDCALL,Number=1,Type=Integer,Description=\"\">" << endl;
-  header << "##INFO=<ID=SUPPORTRDMEAN,Number=1,Type=Float,Description=\"\">" << endl;
-  header << "##INFO=<ID=NOSUPPORTRDMEAN,Number=1,Type=Float,Description=\"\">" << endl;  
-  header << "##INFO=<ID=MAXLIBSUPPORT,Number=1,Type=Integer,Description=\"\">" << endl;
+  header << "##INFO=<ID=MEI,Number=1,Type=Integer,Description=\"SV intersects a known MEI\">" << endl;
+  header << "##INFO=<ID=GOODCNCALL,Number=1,Type=Integer,Description=\"CN support for call based on allele balance\">" << endl;
+  header << "##INFO=<ID=SUPPORTCNMEAN,Number=1,Type=Float,Description=\"Average CN of samples with read support for SV\">" << endl;
+  header << "##INFO=<ID=NOSUPPORTCNMEAN,Number=1,Type=Float,Description=\"Average CN of samples without read support for SV\">" << endl;  
+  header << "##INFO=<ID=MAXLIBSUPPORT,Number=1,Type=Integer,Description=\"Largest number of reads for a single sample that support the SV\">" << endl;
   header << "##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Hemizygous Genotype\">" << endl;
   header << "##FORMAT=<ID=LS,Number=1,Type=Integer,Description=\"Library reads supporting SV\">" << endl;
   header << "##FORMAT=<ID=ED,Number=1,Type=Float,Description=\"Average edit distance of supporting reads\">" << endl;
