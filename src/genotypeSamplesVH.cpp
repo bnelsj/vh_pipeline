@@ -168,12 +168,12 @@ std::string getInfoField(std::string &svName, std::vector<indivDat*> &dat)
 			}
 		}
 		// Genotype samples
-		if((*j)->libSupport > 0 && (*j)->readDepth <= 1.6) {
-			(*j)->genotype = "#/1";
+		if((*j)->libSupport > 0 && (*j)->readDepth != -1 && (*j)->readDepth <= 1.6) {
+			(*j)->genotype = "!/1";
 		} else if((*j)->readDepth != -1 && (*j)->readDepth < 1.4) {
-			(*j)->genotype = "#/1";
+			(*j)->genotype = "!/1";
 		} else {
-			(*j)->genotype = "#/0";
+			(*j)->genotype = "!/0";
 		}
 	}
 
@@ -187,6 +187,7 @@ std::string getInfoField(std::string &svName, std::vector<indivDat*> &dat)
 		goodRDCall = 0;
 
 	stream << "GOODRDCALL=" << goodRDCall << ";SUPPORTRDMEAN=" << supRDMean << ";NOSUPPORTRDMEAN=" << noSupRDMean << ";MAXLIBSUPPORT=" << maxLibSup;
+	stream << ";CIPOS=-10,0;CIEND=0,10";
 
 	return stream.str();
 }
@@ -203,7 +204,7 @@ std::string getInfoField(std::string &svName, std::vector<indivDat*> &dat)
 std::string indivDatGenotype(std::vector<indivDat*> &dat)
 {
 	std::stringstream stream;
-	stream << "\tGT:LS:ED:RD";
+	stream << "\tGT:LS:ED:CN";
 	for(std::vector<indivDat*>::iterator j = dat.begin();
 		j != dat.end(); j++) {
 	  stream << "\t" << (*j)->genotype << ":" << (*j)->libSupport << ":" << (*j)->averageEdist << ":";
@@ -239,6 +240,48 @@ double getReadDepth(std::string &region, std::string &start, std::string &end, T
 	}
 	return rd;
 }
+
+//------------------------------- SUBROUTINE --------------------------------
+/*
+ Function input  : vector of pointers to breakpoints and a bamtools RefVector
+
+ Function does   : prints a vcf format
+
+ Function returns: nada
+
+*/
+
+
+void printVCFHeader(vector<std::string> &samples){
+
+  std::stringstream header;
+  
+  header << "##fileformat=VCFv4.2" << endl;
+  header << "##source=VariationHunter" << endl;
+  header << "##INFO=<ID=SVTYPE,Number=1,Type=String,Description=\"Type of structural variant\">" << endl;
+  header << "##INFO=<ID=SVLEN,Number=1,Type=Integer,Description=\"Difference in length between REF and ALT alleles\">" << endl;
+  header << "##INFO=<ID=END,Number=1,Type=Integer,Description=\"End position of the variant described in this record\">" << endl;
+  header << "##INFO=<ID=POS,Number=2,Type=String,Description=\"POS and END\">" << endl;
+  header << "##INFO=<ID=CIPOS,Number=2,Type=Integer,Description=\"Confidence interval around POS for imprecise variants\">" << endl;
+  header << "##INFO=<ID=CIEND,Number=2,Type=Integer,Description=\"Confidence interval around END for imprecise variants\">" << endl;
+  header << "##INFO=<ID=GOODRDCALL,Number=1,Type=Integer,Description=\"\">" << endl;
+  header << "##INFO=<ID=SUPPORTRDMEAN,Number=1,Type=Float,Description=\"\">" << endl;
+  header << "##INFO=<ID=NOSUPPORTRDMEAN,Number=1,Type=Float,Description=\"\">" << endl;  
+  header << "##INFO=<ID=MAXLIBSUPPORT,Number=1,Type=Integer,Description=\"\">" << endl;
+  header << "##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Hemizygous Genotype\">" << endl;
+  header << "##FORMAT=<ID=LS,Number=1,Type=Integer,Description=\"Library reads supporting SV\">" << endl;
+  header << "##FORMAT=<ID=ED,Number=1,Type=Float,Description=\"Average edit distance of supporting reads\">" << endl;
+  header << "##FORMAT=<ID=CN,Number=1,Type=Float,Description=\"Copy number based on GC-corrected read depth\">" << endl;
+
+  header << "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT" ;
+
+  for(vector<string>::iterator iz = samples.begin(); iz !=  samples.end(); iz++){
+    header << "\t" << (*iz);
+  }
+
+  std::cout << header.str() << std::endl;
+}
+
 //------------------------------- SUBROUTINE --------------------------------
 /*
  Function input  :
@@ -282,7 +325,9 @@ void processLine(std::string &line)
 
 	std::string svInfo = getInfoField(lineDat[3], individuals);
 
-	std::cout << lineDat[0] << "\t" << lineDat[1] << "\t.\t.\t.\t.\t" << svInfo << "\t" << indivDatGenotype(individuals) << std::endl;
+	std::cout << lineDat[0] << "\t" << lineDat[1] << "\t" << lineDat[3];
+	std::cout << "\tN\t<DEL>\t.\t." << svInfo << ";SVLEN=" << atoi(lineDat[1].c_str()) - atoi(lineDat[2].c_str()) << indivDatGenotype(individuals) << std::endl;
+
 	for(std::vector<indivDat*>::iterator j = individuals.begin();
 		j != individuals.end(); j++) {
 		delete (*j);
@@ -361,6 +406,7 @@ int main( int argc, char** argv)
 		std::cerr << "Error: Cannot open file" << std::endl;
 		exit(1);
 	} else {
+		printVCFHeader(samples);
 		while(infile.good()) {
 			getline(infile, line);
 			processLine(line);
