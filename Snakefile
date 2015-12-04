@@ -131,11 +131,11 @@ rule all:
 #        "./bin/genotype_MultipleSamples2 {input} > {output}"
 
 rule merge_genotyped_calls:
-    input: expand("final_calls/final_calls.{chr}.bed", chr = CHR_CONTIGS)
-    output: "final_calls/final_calls.bed"
+    input: expand("final_calls/final_calls.{chr}.vcf", chr = CHR_CONTIGS)
+    output: "final_calls/final_calls.vcf"
     params: sge_opts = "-l mfree=8G"
     shell:
-        "cat {input} > {output}"
+        "vcfcombine {input} > {output}"
 
 #rule genotype_samples_by_chr:
 #    input: "samples.txt", "svs/{chr}.SV.DEL.merged", "calls/Alu_L1_SV_Picked.txt", "proband_list.txt", "depth_file_manifest.txt", "calls/VH_calls_gt500bp.txt"
@@ -146,7 +146,7 @@ rule merge_genotyped_calls:
 
 rule genotype_samples_by_chr_new:
     input: svs="svs/{chr}.SV.DEL.merged", mei="calls/Alu_L1_SV_Picked.txt", rd_manifest="samples.tabix.txt"
-    output: "final_calls/final_calls.{chr}.bed"
+    output: "final_calls/final_calls.{chr}.vcf"
     params: sge_opts = "-l mfree=20G"
     shell:
         "./bin/genotypeSamplesVH -f {input.svs} -m {input.mei} -r {input.rd_manifest} > {output}"
