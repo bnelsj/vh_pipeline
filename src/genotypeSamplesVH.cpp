@@ -381,7 +381,10 @@ int main( int argc, char** argv)
 		while(manifest.good()) {
 			getline(manifest, line);
 			sn_file_pair = split(line, "\t");
-			samples.push_back(sn_file_pair[0]);
+
+			if(!sn_file_pair[0].empty()) {
+				samples.push_back(sn_file_pair[0]);
+			}
 
 			// Get pointer map to tabix files
 			if(!sn_file_pair[1].empty()) {
@@ -410,6 +413,9 @@ int main( int argc, char** argv)
 		printVCFHeader(samples);
 		while(infile.good()) {
 			getline(infile, line);
+			if(line.empty()) {
+				continue;
+			}
 			processLine(line);
 		}
 	}
