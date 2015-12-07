@@ -120,7 +120,7 @@ for dir in dirs_to_check:
 localrules: all, get_isize_from_wham, get_isize_from_picard
 
 rule all:
-    input: "final_calls/final_calls.bed" #expand("svs/{chr}.SV.DEL.merged.MEI", chr = CHR_CONTIGS)
+    input: "final_calls/final_calls.vcf" #expand("svs/{chr}.SV.DEL.merged.MEI", chr = CHR_CONTIGS)
     params: sge_opts=""
 
 #rule genotype_samples: # max SV list size set to 5 million for svs/ALL.SV.DEL.merged.
@@ -180,6 +180,7 @@ rule get_tabix_depth_manifest:
                 tbx = ""
                 if len(tbx_list) > 0:
                     tbx = tbx_list[0].replace(".tbi", "")
+                    tbx = os.path.abspath(tbx)
                 sn_tbx.append((sn, tbx))
 
         with open(output[0], "w") as outfile:
