@@ -29,6 +29,7 @@
 	"edist": 4,
 	"n_dev": 3,
 	"read_length": 100,
+	"min_RD_GT_size": 500,
 	"ref_files": {
 		"hg19": {
 			"ref_fasta": "/net/eichler/vol2/eee_shared/assemblies/human_1kg_v37/human_1kg_v37.fasta",
