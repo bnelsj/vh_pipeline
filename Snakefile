@@ -122,15 +122,8 @@ for dir in dirs_to_check:
 localrules: all, get_isize_from_wham, get_isize_from_picard
 
 rule all:
-    input: "final_calls/final_calls.vcf" #expand("svs/{chr}.SV.DEL.merged.MEI", chr = CHR_CONTIGS)
+    input: "final_calls/final_calls.vcf"
     params: sge_opts=""
-
-#rule genotype_samples: # max SV list size set to 5 million for svs/ALL.SV.DEL.merged.
-#    input: "samples.txt", "svs/ALL.SV.DEL.merged",  "calls/Alu_L1_SV_Picked.txt", "proband_list.txt", "depth_file_manifest.txt", "calls/VH_calls_gt500bp.txt"
-#    output: "final_calls.bed"
-#    params: sge_opts = "-l mfree=300G"
-#    shell:
-#        "./bin/genotype_MultipleSamples2 {input} > {output}"
 
 rule merge_genotyped_calls:
     input: expand("final_calls/sort.final_calls.{chr}.vcf", chr = CHR_CONTIGS)
@@ -146,14 +139,7 @@ rule sort_genotyped_calls:
     shell:
         "vcfsort {input} > {output}"
 
-#rule genotype_samples_by_chr:
-#    input: "samples.txt", "svs/{chr}.SV.DEL.merged", "calls/Alu_L1_SV_Picked.txt", "proband_list.txt", "depth_file_manifest.txt", "calls/VH_calls_gt500bp.txt"
-#    output: "final_calls/final_calls.{chr}.bed"
-#    params: sge_opts = "-l mfree=300G"
-#    shell:
-#        "./bin_old/genotype_MultipleSamples2 {input} > {output}"
-
-rule genotype_samples_by_chr_new:
+rule genotype_samples_by_chr:
     input: svs="svs/{chr}.SV.DEL.merged", mei="calls/Alu_L1_SV_Picked.txt", rd_manifest="samples.tabix.txt"
     output: "final_calls/final_calls.{chr}.vcf"
     params: sge_opts = "-l mfree=20G"
@@ -165,16 +151,6 @@ rule get_proband_samples:
     output: "proband_list.txt"
     params: sge_opts = ""
     shell: "touch {output}"
-
-rule get_depth_file_manifest:
-    input: expand("%s/VH_calls_gt%dbp.{sample}.bam.Depth" % ("depth", MIN_RD_GT_SIZE), sample = SAMPLES)
-    output: "depth_file_manifest.txt"
-    params: sge_opts = ""
-    run:
-        with open(output[0], "w") as outfile:
-            for sn in SAMPLES:
-                infile = [os.path.abspath(file) for file in input if sn in file][0]
-                outfile.write("%s\t%s\n" % (infile, sn))
 
 rule get_tabix_depth_manifest:
     input: expand("%s/VH_calls_gt%sbp.{sample}.bam.Depth.sort.bed.gz.tbi" % ("depth", MIN_RD_GT_SIZE), sample = SAMPLES), "samples.txt"
