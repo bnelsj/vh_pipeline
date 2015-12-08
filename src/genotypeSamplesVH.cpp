@@ -64,10 +64,11 @@ struct options{
 	std::string file;
 	std::string readDepthManifest;
 	std::string MEI;
+	int minSVLen;
 	std::string probands;
 }globalOpts;
 
-static const char *optString = "hf:r:m:p:";
+static const char *optString = "hf:r:m:i:p:";
 
 //-------------------------------   OPTIONS   --------------------------------
 int parseOpts(int argc, char** argv)
@@ -96,6 +97,11 @@ int parseOpts(int argc, char** argv)
 		{
 		 globalOpts.MEI = optarg;
 		 break;
+		}
+		case 'i':
+		{
+		globalOpts.minSVLen = atoi(optarg);
+		break;
 		}
 		case 'p':
 		{
@@ -299,6 +305,8 @@ void processLine(std::string &line)
 	std::stringstream ss;
 
 	lineDat = split(line, "\t");
+	
+	int svLen = atoi(lineDat[1].c_str()) - atoi(lineDat[2].c_str());
 
 	ss << lineDat[0] << ":" << lineDat[1] << "-" << lineDat[2];
 	std::string region = ss.str();
@@ -311,12 +319,13 @@ void processLine(std::string &line)
 		exit(1);
 	}
 
+	// Get read depth for calls > min size
 	for(int i=1; i < lineDat2.size(); i+=2) {
 		indivDat* indivSV = new indivDat;
 		indivSV->libSupport = atof(lineDat2[i].c_str());
 		indivSV->averageEdist = atof(lineDat2[i+1].c_str());
 
-		if(sampleRDPath[samples[(i-1)/2]] != NULL) {
+		if(sampleRDPath[samples[(i-1)/2]] != NULL && svLen > globalOpts.minSVLen) {
 			indivSV->readDepth = getReadDepth(region, lineDat[1], lineDat[2], sampleRDPath[samples[(i-1)/2]]);
 		} else {
 			indivSV->readDepth = -1;
@@ -327,7 +336,7 @@ void processLine(std::string &line)
 	std::string svInfo = getInfoField(lineDat[3], individuals);
 
 	std::cout << lineDat[0] << "\t" << lineDat[1] << "\t" << lineDat[3];
-	std::cout << "\tN\t<DEL>\t.\t." << svInfo << ";SVLEN=" << atoi(lineDat[1].c_str()) - atoi(lineDat[2].c_str()) << indivDatGenotype(individuals) << std::endl;
+	std::cout << "\tN\t<DEL>\t.\t." << svInfo << ";SVLEN=" << svLen << indivDatGenotype(individuals) << std::endl;
 
 	for(std::vector<indivDat*>::iterator j = individuals.begin();
 		j != individuals.end(); j++) {
@@ -342,7 +351,14 @@ void processLine(std::string &line)
 
 int main( int argc, char** argv)
 {
+	globalOpts.minSVLen = -1;
+
 	int parse = parseOpts(argc, argv);
+
+	if (globalOpts.minSVLen == -1) {
+		std::cerr << "Error: no min SV length specified for RD genotyping." << std::endl;
+		exit(1);
+	}
 
 	// Read MEI file
 	if (globalOpts.MEI.empty()) {
