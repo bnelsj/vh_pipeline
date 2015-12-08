@@ -140,11 +140,11 @@ void sub()
  Function returns:
 
 */
-std::string getInfoField(std::string &svName, std::vector<indivDat*> &dat)
+std::string getInfoField(std::vector<std::string> &lineDat, std::vector<indivDat*> &dat)
 {
 	std::stringstream stream;
 	stream << "\tSVTYPE=DEL;MEI=";
-	if(mei_names.find(svName) != mei_names.end()) {
+	if(mei_names.find(lineDat[3]) != mei_names.end()) {
 		stream << "1;";
 	} else {
 		stream << "0;";
@@ -193,7 +193,7 @@ std::string getInfoField(std::string &svName, std::vector<indivDat*> &dat)
 		goodRDCall = 0;
 
 	stream << "GOODCNCALL=" << goodRDCall << ";SUPPORTCNMEAN=" << supRDMean << ";NOSUPPORTCNMEAN=" << noSupRDMean << ";MAXLIBSUPPORT=" << maxLibSup;
-	stream << ";CIPOS=-10,0;CIEND=0,10";
+	stream << ";END=" << lineDat[2] << ";CIPOS=-10,0;CIEND=0,10";
 
 	return stream.str();
 }
@@ -333,7 +333,7 @@ void processLine(std::string &line)
 		individuals.push_back(indivSV);
 	}
 
-	std::string svInfo = getInfoField(lineDat[3], individuals);
+	std::string svInfo = getInfoField(lineDat, individuals);
 
 	std::cout << lineDat[0] << "\t" << lineDat[1] << "\t" << lineDat[3];
 	std::cout << "\tN\t<DEL>\t.\t." << svInfo << ";SVLEN=" << svLen << indivDatGenotype(individuals) << std::endl;
