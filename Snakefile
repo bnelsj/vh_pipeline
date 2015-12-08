@@ -23,6 +23,8 @@ READ_LEN = config["read_length"]
 EDIST = config["edist"]
 N_DEV = config["n_dev"]
 
+MIN_RD_GT_SIZE = config["min_RD_GT_size"]
+
 VH_CLUSTER = config["vh_cluster"]
 VH_SELECTION = config["vh_selection"]
 WHAM_PATH = config["wham_path"]
@@ -131,11 +133,18 @@ rule all:
 #        "./bin/genotype_MultipleSamples2 {input} > {output}"
 
 rule merge_genotyped_calls:
-    input: expand("final_calls/final_calls.{chr}.vcf", chr = CHR_CONTIGS)
+    input: expand("final_calls/sort.final_calls.{chr}.vcf", chr = CHR_CONTIGS)
     output: "final_calls/final_calls.vcf"
     params: sge_opts = "-l mfree=8G"
     shell:
-        "vcfcombine {input} > {output}"
+        "vcf-concat {input} > {output}"
+
+rule sort_genotyped_calls:
+    input: "final_calls/final_calls.{chr}.vcf"
+    output: "final_calls/sort.final_calls.{chr}.vcf"
+    params: sge_opts = "-l mfree=8G"
+    shell:
+        "vcfsort {input} > {output}"
 
 #rule genotype_samples_by_chr:
 #    input: "samples.txt", "svs/{chr}.SV.DEL.merged", "calls/Alu_L1_SV_Picked.txt", "proband_list.txt", "depth_file_manifest.txt", "calls/VH_calls_gt500bp.txt"
@@ -149,7 +158,7 @@ rule genotype_samples_by_chr_new:
     output: "final_calls/final_calls.{chr}.vcf"
     params: sge_opts = "-l mfree=20G"
     shell:
-        "./bin/genotypeSamplesVH -f {input.svs} -m {input.mei} -r {input.rd_manifest} > {output}"
+        "./bin/genotypeSamplesVH -f {input.svs} -m {input.mei} -r {input.rd_manifest} -i {MIN_RD_GT_SIZE} > {output}"
 
 rule get_proband_samples:
     input: "samples.txt"
@@ -158,7 +167,7 @@ rule get_proband_samples:
     shell: "touch {output}"
 
 rule get_depth_file_manifest:
-    input: expand("%s/VH_calls_gt500bp.{sample}.bam.Depth" % "depth", sample = SAMPLES)
+    input: expand("%s/VH_calls_gt%dbp.{sample}.bam.Depth" % ("depth", MIN_RD_GT_SIZE), sample = SAMPLES)
     output: "depth_file_manifest.txt"
     params: sge_opts = ""
     run:
@@ -168,7 +177,7 @@ rule get_depth_file_manifest:
                 outfile.write("%s\t%s\n" % (infile, sn))
 
 rule get_tabix_depth_manifest:
-    input: expand("%s/VH_calls_gt500bp.{sample}.bam.Depth.sort.bed.gz.tbi" % "depth", sample = SAMPLES), "samples.txt"
+    input: expand("%s/VH_calls_gt%sbp.{sample}.bam.Depth.sort.bed.gz.tbi" % ("depth", MIN_RD_GT_SIZE), sample = SAMPLES), "samples.txt"
     output: "samples.tabix.txt"
     params: sge_opts = ""
     run:
@@ -188,29 +197,29 @@ rule get_tabix_depth_manifest:
                 outfile.write("\t".join([sn, tbx]) + "\n")
 
 rule tabix_index_depth_files:
-    input: "%s/VH_calls_gt500bp.{sample}.bam.Depth.sort.bed.gz" % "depth"
-    output: "%s/VH_calls_gt500bp.{sample}.bam.Depth.sort.bed.gz.tbi" % "depth"
+    input: "%s/VH_calls_gt%dbp.{sample}.bam.Depth.sort.bed.gz" % ("depth", MIN_RD_GT_SIZE)
+    output: "%s/VH_calls_gt%dbp.{sample}.bam.Depth.sort.bed.gz.tbi" % ("depth", MIN_RD_GT_SIZE)
     params: sge_opts = ""
     shell:
         "tabix -p bed {input}"
 
 rule bgzip_depth_files:
-    input: "%s/VH_calls_gt500bp.{sample}.bam.Depth.sort.bed" % "depth"
-    output: "%s/VH_calls_gt500bp.{sample}.bam.Depth.sort.bed.gz" % "depth"
+    input: "%s/VH_calls_gt%dbp.{sample}.bam.Depth.sort.bed" % ("depth", MIN_RD_GT_SIZE)
+    output: "%s/VH_calls_gt%dbp.{sample}.bam.Depth.sort.bed.gz" % ("depth", MIN_RD_GT_SIZE)
     params: sge_opts = ""
     shell:
         "bgzip {input}"
 
 rule sort_depth_files:
-    input: "%s/VH_calls_gt500bp.{sample}.bam.Depth" % "depth"
-    output: "%s/VH_calls_gt500bp.{sample}.bam.Depth.sort.bed" % "depth"
+    input: "%s/VH_calls_gt%dbp.{sample}.bam.Depth" % ("depth", MIN_RD_GT_SIZE)
+    output: "%s/VH_calls_gt%dbp.{sample}.bam.Depth.sort.bed" % ("depth", MIN_RD_GT_SIZE)
     params: sge_opts = ""
     shell:
         "bedtools sort -i {input} > {output}"
 
 rule get_gc_corrected_read_depth_per_call:
-    input: REFERENCE_GC_PROFILE, "%s/{sample}.bam.Depth" % READ_DEPTH_DIR, "calls/VH_calls_gt500bp.clean"
-    output: "%s/VH_calls_gt500bp.{sample}.bam.Depth" % "depth"
+    input: REFERENCE_GC_PROFILE, "%s/{sample}.bam.Depth" % READ_DEPTH_DIR, "calls/VH_calls_gt%dbp.clean" % MIN_RD_GT_SIZE
+    output: "%s/VH_calls_gt%dbp.{sample}.bam.Depth" % ("depth", MIN_RD_GT_SIZE)
     params: sge_opts = "-l mfree=64G"
     shell:
         "./bin/calculateReadDepthFromBAM {input} > {output}"
@@ -227,24 +236,24 @@ rule get_read_depth:
         "samtools depth {input} > {params.tmpfile}; "
         "rsync --bwlimit 10000 {params.tmpfile} {output}"
 
-rule get_clean_gt500bp_file:
-    input: "calls/VH_calls_gt500bp.tab"
-    output: "calls/VH_calls_gt500bp.clean"
+rule get_clean_gt_XXXbp_file:
+    input: "calls/VH_calls_gt%dbp.tab" % MIN_RD_GT_SIZE
+    output: "calls/VH_calls_gt%dbp.clean" % MIN_RD_GT_SIZE
     params: sge_opts = ""
     shell: "cut -f 1-4 {input} > {output}"
 
-rule get_gt500bp_call_names:
-    input: "calls/VH_calls_gt500bp.tab"
-    output: "calls/VH_calls_gt500bp.txt"
+rule get_gtXXXbp_call_names:
+    input: "calls/VH_calls_gt%dbp.tab" % MIN_RD_GT_SIZE
+    output: "calls/VH_calls_gt%dbp.txt" % MIN_RD_GT_SIZE
     params: sge_opts = ""
     shell: "cut -f 4 {input} > {output}"
 
-rule get_calls_over_500bp:
+rule get_calls_over_XXXbp:
     input: "svs/ALL.SV.DEL.merged"
-    output: "calls/VH_calls_gt500bp.tab"
+    output: "calls/VH_calls_gt%dbp.tab" % MIN_RD_GT_SIZE
     params: sge_opts = ""
     shell:
-        "cat {input} | awk '{{if ($3-$2>500) print;}}' > {output}"
+        "cat {input} | awk '{{if ($3-$2>{MIN_RD_GT_SIZE}) print;}}' > {output}"
 
 rule combine_all_calls:
     input: expand("svs/{chr}.SV.DEL.merged", chr = CHR_CONTIGS)
