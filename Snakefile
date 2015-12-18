@@ -122,8 +122,15 @@ for dir in dirs_to_check:
 localrules: all, get_isize_from_wham, get_isize_from_picard
 
 rule all:
-    input: "final_calls/final_calls.vcf"
+    input: "final_calls/final_calls.filt.vcf"
     params: sge_opts=""
+
+rule filter_vcf:
+    input: "final_calls/final_calls.vcf"
+    output: "final_calls/final_calls.filt.vcf"
+    params: sge_opts = "-l mfree=8G"
+    shell:
+        '''cat {input} | java -jar $MOD_GSSNPEFF_DIR/SnpSift.jar filter "( MEI = 1 ) | ( SVLEN < -500 )" > {output}'''
 
 rule merge_genotyped_calls:
     input: expand("final_calls/sort.final_calls.{chr}.vcf", chr = CHR_CONTIGS)
