@@ -1,5 +1,5 @@
 {
-	"sample_dir": "/net/eichler/vol24/projects/human_diversity/nobackups/C_team_bwa_mappings/renamed",
+    "sample_manifest": "samples.tab",
 	"exclude": [],
 	"manifest": "manifest.txt",
 	"isize_path": "isizes",

@@ -12,7 +12,6 @@ shell.prefix("source config.sh; ")
 if config == {}:
     configfile: "config.json"
 
-SAMPLE_DIR = config["sample_dir"]
 EXCLUDE = config["exclude"]
 
 MANIFEST = config["manifest"]
@@ -53,16 +52,20 @@ ruleorder: get_all_discordant_reads > merge_discordant_reads_by_chr
 ### By default, this uses NGROUPS and not VH_GROUP_SIZE
 ### assigns samples to groups based on family as listed in MANIFEST
 
-SAMPLES = []
+SAMPLE_MANIFEST = config["sample_manifest"]
 
-for file in os.listdir(SAMPLE_DIR):
-    if file.endswith(SAMPLE_SUFFIX):
-        if os.path.exists(SAMPLE_DIR + "/" + file + ".bai"):
-            sn = file.replace("." + SAMPLE_SUFFIX, "")
-            if sn not in EXCLUDE:
-                SAMPLES.append(sn)
-        else:
-            print("Cannot find index for sample %s" % file)
+SAMPLES = {}
+
+with open(SAMPLE_MANIFEST, 'r') as reader:
+    for line in reader:
+        sn, path = line.rstrip().split()
+        if not sn in EXCLUDE:
+            if os.path.exists(path + '.bai'):
+                SAMPLES[sn] = path
+            else:
+                print("Cannot find index for sample %s" % file)
+
+NSAMPLES = len(SAMPLES.keys())
 
 ISIZE_PATH = config["isize_path"]
 PICARD_ISIZE_SUFFIX = config["picard_isize_suffix"]
@@ -81,9 +84,8 @@ POSITION_COL_NAME = config["position_col_name"]
 ###
 
 if not FAMILY_BATCHES:
-    SIZE = len(SAMPLES)
     NGROUPS = 0
-    while NGROUPS * VH_GROUP_SIZE < SIZE:
+    while NGROUPS * VH_GROUP_SIZE < NSAMPLES:
         NGROUPS += 1
 
 GROUPS = [str(x) for x in range(NGROUPS)]
@@ -160,7 +162,7 @@ rule get_proband_samples:
     shell: "touch {output}"
 
 rule get_tabix_depth_manifest:
-    input: expand("%s/VH_calls_gt%sbp.{sample}.bam.Depth.sort.bed.gz.tbi" % ("depth", MIN_RD_GT_SIZE), sample = SAMPLES), "samples.txt"
+    input: expand("%s/VH_calls_gt%sbp.{sample}.bam.Depth.sort.bed.gz.tbi" % ("depth", MIN_RD_GT_SIZE), sample = SAMPLES.keys()), "samples.txt"
     output: "samples.tabix.txt"
     params: sge_opts = ""
     run:
@@ -208,11 +210,11 @@ rule get_gc_corrected_read_depth_per_call:
         "./bin/calculateReadDepthFromBAM {input} > {output}"
 
 rule get_depth:
-    input: expand("%s/{sample}.bam.Depth" % READ_DEPTH_DIR, sample = SAMPLES)
+    input: expand("%s/{sample}.bam.Depth" % READ_DEPTH_DIR, sample = SAMPLES.keys())
     params: sge_opts = ""
 
 rule get_read_depth:
-    input: '%s/{sample}.%s' % (SAMPLE_DIR, SAMPLE_SUFFIX)
+    input: lambda wildcards: SAMPLES[wildcards.sample]
     output: "%s/{sample}.bam.Depth" % READ_DEPTH_DIR
     params: sge_opts = "", tmpfile = "$TMPDIR/{sample}.bam.Depth"
     shell:
@@ -318,15 +320,15 @@ rule run_vh:
     shell:
         '{VH_CLUSTER} -i {VH_INIT_INFO} -c {VH_CONTIG_CHUNKS} -g {REFERENCE_GAPS} -r {REFERENCE_SATELLITE} -l {input} -t {output[0]} -o {output[1]}'
 
-#rule prep_vh:
-#    input: 'manifest.txt', expand('%s/{sample}.vh' % ALL_DISCO_DIR, sample = SAMPLES)
-#    output: '{vhdir}/{num}.txt'.format(num=num, vhdir=VH_OUTDIR) for num in SUFFIX_LIST
-#    params: sge_opts='-N make_batches', family_string = _get_family_string
-#    shell:
-#        'python prep_divet_manifest.py --group_size {VH_GROUP_SIZE} --n_groups {NGROUPS} --manifest {input[0]} --outdir {VH_OUTDIR} --vhdir {ALL_DISCO_DIR} {params.family_string}'
+rule prep_vh:
+    input: 'manifest.txt', expand('%s/{sample}.vh' % ALL_DISCO_DIR, sample = SAMPLES.keys())
+    output: '{vhdir}/{num}.txt'.format(num=num, vhdir=VH_OUTDIR) for num in SUFFIX_LIST
+    params: sge_opts='-N make_batches', family_string = _get_family_string
+    shell:
+        'python prep_divet_manifest.py --group_size {VH_GROUP_SIZE} --n_groups {NGROUPS} --manifest {input[0]} --outdir {VH_OUTDIR} --vhdir {ALL_DISCO_DIR} {params.family_string}'
 
 rule do_get_vh_files:
-    input: expand('%s/{sample}.vh' % ALL_DISCO_DIR, sample = SAMPLES)
+    input: expand('%s/{sample}.vh' % ALL_DISCO_DIR, sample = SAMPLES.keys())
     params: sge_opts=""
 
 rule get_vh_files:
@@ -352,7 +354,8 @@ rule merge_discordant_reads_by_chr:
         "samtools merge {output} {input}"
 
 rule get_discordant_reads_by_chr:
-    input: '%s/{sample}.%s' % (SAMPLE_DIR, SAMPLE_SUFFIX), MANIFEST
+    input:  lambda wildcards: SAMPLES[wildcards.sample], 
+            MANIFEST
     output: '%s/{sample}.{chr}.bam' % "disco_by_chr"
     benchmark: "benchmarks/{sample}.{chr}.json"
     params: sge_opts="-l mfree=15G -N get_disco_rds -cwd -l ssd=TRUE -l data_scratch_ssd_disk_free=50G -pe serial 1", lq_path = "lq_reads/{sample}.{chr}.lq.bam", chr = "{chr}"
@@ -364,7 +367,8 @@ rule get_discordant_reads_by_chr:
              )
 
 rule get_all_discordant_reads:
-    input: '%s/{sample}.%s' % (SAMPLE_DIR, SAMPLE_SUFFIX), MANIFEST
+    input:  lambda wildcards: SAMPLES[wildcards.sample], 
+            MANIFEST
     output: '%s/{sample}.bam' % ALL_DISCO_DIR
     benchmark: "benchmarks/{sample}.json"
     params: sge_opts="-l mfree=30G -N get_disco_rds -cwd -l disk_free=400G -pe serial 1", lq_path = "lq_reads/{sample}.lq.bam"
@@ -372,14 +376,14 @@ rule get_all_discordant_reads:
         "samtools bamshuf -O {input[0]} $TMPDIR/{wildcards.sample} | python bam2vh_unpaired.py /dev/stdin {input[1]} {wildcards.sample} --discordant_reads {output[0]} --discordant_read_format bam --low_qual_reads {params.lq_path}"
 
 rule get_isize_from_wham:
-    input: expand("%s/{sample}.%s" % (ISIZE_PATH, WHAM_ISIZE_SUFFIX), sample = SAMPLES)
+    input: expand("%s/{sample}.%s" % (ISIZE_PATH, WHAM_ISIZE_SUFFIX), sample = SAMPLES.keys())
     output: "%s" % MANIFEST
     params: sge_opts = "-N isize"
     run:
         outfile = open(output[0], "w")
         for infile in input:
             sample_name = os.path.basename(infile.replace("." + WHAM_ISIZE_SUFFIX, ''))
-            sample_path = SAMPLE_DIR + '/' + sample_name + '.' + SAMPLE_SUFFIX
+            sample_path = SAMPLES[sample_name]
             with open(infile, 'r') as reader:
                 median_isize, sd_isize = None, None
                 for line in reader:
@@ -396,14 +400,14 @@ rule get_isize_from_wham:
        
 
 rule get_isize_from_picard:
-    input: expand("%s/{sample}.%s" % (ISIZE_PATH, PICARD_ISIZE_SUFFIX), sample = SAMPLES)
+    input: expand("%s/{sample}.%s" % (ISIZE_PATH, PICARD_ISIZE_SUFFIX), sample = SAMPLES.keys())
     output: '%s' % MANIFEST
     params: sge_opts="-N isize"
     run:
         outfile = open(output[0], 'w')
         for infile in input:
             sample_name = os.path.basename(infile.replace("." + PICARD_ISIZE_SUFFIX, ''))
-            sample_path = SAMPLE_DIR + '/' + sample_name + '.' + SAMPLE_SUFFIX
+            sample_path = SAMPLES[sample_name]
             with open(infile, 'r') as reader:
                 isize_line = False
                 for line in reader:
@@ -420,7 +424,7 @@ rule get_isize_from_picard:
         outfile.close()
 
 rule calc_isize_picard:
-    input: '%s/{sample}.%s' % (SAMPLE_DIR, SAMPLE_SUFFIX)
+    input: lambda wildcards: SAMPLES[wildcards.sample]
     output: "%s/{sample}.%s" % (ISIZE_PATH, PICARD_ISIZE_SUFFIX)
     params: sge_opts = "-l mfree=8G -N isize_picard"
     shell:
@@ -428,7 +432,8 @@ rule calc_isize_picard:
         """java -Xmx8G -jar $PICARD_DIR/CollectInsertSizeMetrics.jar I={input} O={output} H={output}.hist"""
 
 rule calc_isize_wham:
-    input: '%s/{sample}.%s' % (SAMPLE_DIR, SAMPLE_SUFFIX), REFERENCE_FASTA
+    input:  lambda wildcards: SAMPLES[wildcards.sample], 
+            REFERENCE_FASTA
     output: "%s/{sample}.%s" % (ISIZE_PATH, WHAM_ISIZE_SUFFIX)
     params: sge_opts = "-l mfree=8G -N isize_wham"
     shell:
